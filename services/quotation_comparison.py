@@ -622,24 +622,25 @@ class QuotationComparisonEngine:
             if not primary_rec.are_cost_inputs_complete:
                 primary_rec.recommendation_type = ComparisonRecommendationType.COMMERCIALLY_VIABLE_COST_INCOMPLETE
                 primary_rec.recommendation_notes = (
-                    f"[RECOMMENDED PRIMARY - COST INCOMPLETE]: Lowest normalized quoted price "
-                    f"({primary_rec.normalized_base_unit_price:.4f} {t_curr}/unit) and complete technical compliance. "
-                    f"Notice: Landed cost inputs (freight/duties) are incomplete and must be verified prior to contract."
+                    f"[CONDITIONAL PRIMARY - COST INCOMPLETE]: Lowest normalized quoted price "
+                    f"({primary_rec.normalized_base_unit_price:.4f} {t_curr}/unit) among candidates meeting the explicit brief limits based on supplier-declared values. "
+                    f"Supplier technical claims are not independently verified; authentic TDS/lab evidence and freight/duties must be reviewed before award."
                 )
             else:
                 primary_rec.recommendation_type = ComparisonRecommendationType.RECOMMENDED_PRIMARY
                 primary_rec.recommendation_notes = (
-                    f"[RECOMMENDED PRIMARY]: Best overall commercial value "
-                    f"(Landed Cost: {primary_rec.normalized_landed_unit_cost:.4f} {t_curr}/unit) "
-                    f"with verified technical compliance and authentic documentary TDS."
+                    f"[CONDITIONAL PRIMARY]: Best overall commercial value "
+                    f"(Landed Cost: {primary_rec.normalized_landed_unit_cost:.4f} {t_curr}/unit) among candidates meeting explicit brief limits based on supplier-declared values. "
+                    f"Technical evidence must be independently authenticated before award."
                 )
 
             if len(compliant_rows) > 1:
                 secondary_rec = compliant_rows[1]
                 secondary_rec.recommendation_type = ComparisonRecommendationType.RECOMMENDED_SECONDARY
                 secondary_rec.recommendation_notes = (
-                    f"[RECOMMENDED SECONDARY - RUNNER UP]: Strong alternative candidate "
-                    f"(Quoted: {secondary_rec.normalized_base_unit_price:.4f} {t_curr}/unit, Lead Time: {secondary_rec.lead_time_weeks} weeks)."
+                    f"[CONDITIONAL SECONDARY - RUNNER UP]: Alternative candidate meeting explicit brief limits based on supplier-declared values "
+                    f"(Quoted: {secondary_rec.normalized_base_unit_price:.4f} {t_curr}/unit, Lead Time: {secondary_rec.lead_time_weeks} weeks). "
+                    f"Independent technical evidence review is required before award."
                 )
 
             for other_row in compliant_rows[2:]:
