@@ -328,8 +328,6 @@ def render_quotation_view(
                 try:
                     if m_price <= 0 or m_qty <= 0 or m_moq <= 0 or m_lead <= 0:
                         raise ValueError("Enter a positive supplier-quoted unit price, quantity, MOQ, and lead time before submitting.")
-                    if m_thick <= 0:
-                        raise ValueError("Enter a positive thickness only when it is stated in the supplier quotation.")
                     if m_tds_claim:
                         m_notes = (m_notes + "\\nSupplier states a TDS is available; no document was attached or independently verified.").strip()
                     comm_data = QuotationCommercialData(
@@ -347,8 +345,8 @@ def render_quotation_view(
                     )
                     comp_data = QuotationTechnicalCompliance(
                         product_category="Flexible Packaging",
-                        structure_description=m_struct,
-                        thickness_microns=m_thick,
+                        structure_description=m_struct.strip() or "Not provided in supplier submission",
+                        thickness_microns=m_thick if m_thick > 0 else None,
                         otr_value=m_otr,
                         wvtr_value=m_wvtr,
                         test_standards_cited=m_standards,
