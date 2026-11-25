@@ -159,7 +159,7 @@ def render_rfq_view(
                     buyer_org_input = st.text_input("Buyer Entity Name", value=active_brief.buyer_organization or "Acme Procurement Corp")
                     procurement_lead = st.text_input("Procurement Officer / Contact", value="Senior Sourcing Manager")
                 with col_b_info2:
-                    contact_inbox = st.text_input("Official Inquiries / Bids Inbox", value="procurement.bids@acme-corp.com")
+                    contact_inbox = st.text_input("Official Inquiries / Bids Inbox", value="", placeholder="Enter a buyer-controlled business inbox; do not use a placeholder address")
                     deadline_days = st.number_input("Response Deadline (Days from Today)", min_value=7, max_value=90, value=21, step=7)
                     calc_deadline = datetime.now(timezone.utc) + timedelta(days=deadline_days)
                     st.caption(f"Calculated Submission Deadline: **{calc_deadline.strftime('%Y-%m-%d %H:%M UTC')}**")
@@ -167,15 +167,15 @@ def render_rfq_view(
                 st.markdown("---")
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
-                    target_volume = st.text_input("Expected Quantity / Target Volume", value="50,000 meters / rolls")
+                    target_volume = st.text_input("Expected Quantity / Target Volume", value="", placeholder="Enter the buyer-approved quantity and unit")
                     product_desc = st.text_area(
                         "Product Scope & Description",
                         value=active_brief.description or "Multi-layer high-performance barrier packaging film for food contact and moisture protection.",
                         height=100,
                     )
                 with col_p2:
-                    barrier_req = st.text_input("Barrier Film Requirements", value="High oxygen and moisture barrier (OTR < 1.0, WVTR < 0.5)")
-                    packaging_mode = st.text_input("Packaging & Shipping Requirements", value="Standard export wooden palletization with moisture-sealed shrink wrapping")
+                    barrier_req = st.text_input("Barrier Film Requirements", value="", placeholder="Enter approved technical thresholds and test methods")
+                    packaging_mode = st.text_input("Packaging & Shipping Requirements", value="", placeholder="Enter approved packaging and shipping requirements")
 
                 st.markdown("---")
                 col_c1, col_c2, col_c3 = st.columns(3)
@@ -183,23 +183,23 @@ def render_rfq_view(
                     currency = st.selectbox("Quotation Currency", options=["USD", "INR", "EUR", "GBP"], index=0)
                     target_price = st.number_input("Target Unit Price (Optional, 0 = Open)", min_value=0.0, value=4.50, step=0.10)
                 with col_c2:
-                    moq_req = st.number_input("Requested Minimum Order Qty (MOQ)", min_value=0, value=5000, step=500)
-                    lead_time_wks = st.number_input("Max Production Lead Time (Weeks)", min_value=1, value=6, step=1)
+                    moq_req = st.number_input("Requested Minimum Order Qty (MOQ)", min_value=0, value=0, step=500)
+                    lead_time_wks = st.number_input("Max Production Lead Time (Weeks)", min_value=1, value=1, step=1, help="Set the buyer-approved maximum lead time.")
                 with col_c3:
                     incoterms = st.selectbox("Incoterms Baseline", options=["FOB Port of Origin", "CIF Buyer Fulfillment Center", "DDP Buyer Facility", "EXW Factory"], index=0)
-                    validity_days = st.number_input("Quotation Price Validity (Days)", min_value=15, value=60, step=15)
+                    validity_days = st.number_input("Quotation Price Validity (Days)", min_value=15, value=15, step=15, help="Set the buyer-approved quotation validity period.")
 
                 col_terms1, col_terms2 = st.columns(2)
                 with col_terms1:
-                    payment_terms = st.text_input("Payment Terms", value="Net 30 days upon delivery and technical quality acceptance")
+                    payment_terms = st.text_input("Payment Terms", value="", placeholder="Enter buyer-approved payment terms")
                 with col_terms2:
-                    delivery_hub = st.text_input("Fulfillment Delivery Location", value="Nhava Sheva Port / Mumbai Fulfilment Hub, India")
+                    delivery_hub = st.text_input("Fulfillment Delivery Location", value="", placeholder="Enter the confirmed delivery location")
 
                 st.markdown("---")
                 st.markdown("#### 🛡️ Truth-in-Evidence & Confidentiality Certification")
                 st.caption(
                     "VendorIQ automatically generates individualized questionnaires and evidence checklists "
-                    "tailored to each supplier's verified capabilities. Internal evaluation scores are never included."
+                    "tailored to available supplier records and clearly identified evidence gaps. Internal evaluation scores are never included."
                 )
 
                 gate_acknowledged = st.checkbox(
