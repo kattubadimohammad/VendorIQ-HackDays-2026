@@ -46,7 +46,9 @@ env/
 
 # Streamlit secrets & cache
 .streamlit/secrets.toml
-.streamlit/*.toml
+.streamlit/secrets.*
+.streamlit/*
+!.streamlit/config.toml
 
 # Testing & Coverage
 .pytest_cache/
@@ -63,5 +65,3 @@ htmlcov/
 storage/
 data/
 
-# Local Streamlit configuration
-.streamlit/
