@@ -351,7 +351,13 @@ def render_discovery_view(
                 "Company Name": rec.company_name,
                 "Domain": rec.domain,
                 "Total Score": rec.total_score,
-                "Qualified Match": "✅ Qualified" if rec.is_hard_match else "🔴 Disqualified",
+                "Eligibility Status": (
+                    "✅ Meets active filters" if rec.is_hard_match else
+                    "🟠 Needs review" if any(
+                        "cannot confirm" in reason.lower() or "missing" in reason.lower()
+                        for reason in rec.hard_filter_failures
+                    ) else "🔴 Confirmed constraint failure"
+                ),
                 "Headcount Range": rec.employee_range or "Not specified",
                 "Country": rec.headquarters_country,
                 "City": rec.headquarters_city or "Unverified",
@@ -387,7 +393,14 @@ def render_discovery_view(
                     st.markdown(f"🌐 `{r.domain}` &bull; 🏢 `{r.headquarters_country}`")
                     st.metric("Composite Score", f"{r.total_score:.1f}/100")
                     st.metric("Evidence Completeness", f"{r.evidence_completeness_pct:.0f}%")
-                    st.metric("Hard Match Status", "QUALIFIED" if r.is_hard_match else "DISQUALIFIED")
+                    eligibility_status = (
+                        "MEETS ACTIVE FILTERS" if r.is_hard_match else
+                        "NEEDS REVIEW" if any(
+                            "cannot confirm" in reason.lower() or "missing" in reason.lower()
+                            for reason in r.hard_filter_failures
+                        ) else "CONFIRMED FAILURE"
+                    )
+                    st.metric("Eligibility Status", eligibility_status)
 
                     st.markdown("#### Factor Breakdown:")
                     for dim, sc in r.factor_scores.items():
