@@ -196,75 +196,122 @@ class TestShortlistRepository:
 
 
 class TestSupplierDiscoveryService:
-    """Test discovery engine, deterministic filtering, and evidence-grounded recommendations."""
+    """Test discovery behavior using deterministic synthetic suppliers and an isolated DB."""
 
-    def test_natural_language_search_token_matching(self):
-        service = SupplierDiscoveryService()
+    @pytest.fixture
+    def discovery_service(self, tmp_path):
+        db_path = str(tmp_path / "synthetic_discovery.sqlite")
+        init_db(db_path)
+        repo = VendorIQRepository(db_path=db_path)
+        suppliers = [
+            SupplierProfile(
+                supplier_id="SYNTH_ALPHA",
+                company_name="Alpha Barrier Films",
+                domain="alphabarrierfilms.example",
+                description=(
+                    "Synthetic manufacturer of flexible packaging, barrier films, "
+                    "BOPP specialty films and laminated pouches."
+                ),
+                headquarters_country="India",
+                headquarters_city="Pune",
+                employee_range="201-500",
+                industries=["Packaging and Containers Manufacturing"],
+                is_synthetic=True,
+            ),
+            SupplierProfile(
+                supplier_id="SYNTH_BETA",
+                company_name="Beta Green Packaging",
+                domain="unrelated-example.example",
+                description="Synthetic manufacturer of sustainable packaging containers and cartons.",
+                headquarters_country="India",
+                headquarters_city="Surat",
+                employee_range="51-200",
+                industries=["Packaging and Containers Manufacturing"],
+                is_synthetic=True,
+            ),
+            SupplierProfile(
+                supplier_id="SYNTH_GAMMA",
+                company_name="Gamma Flexible Films",
+                domain="gammaflexiblefilms.example",
+                description="Synthetic producer of flexible packaging films and laminated rolls.",
+                headquarters_country="India",
+                headquarters_city="Mumbai",
+                employee_range="51-200",
+                industries=["Packaging and Containers Manufacturing"],
+                is_synthetic=True,
+            ),
+        ]
+        for supplier in suppliers:
+            repo.create_supplier(supplier)
+        return SupplierDiscoveryService(repository=repo)
+
+    def test_natural_language_search_token_matching(self, discovery_service):
+        service = discovery_service
         params = DiscoveryFilterParams(query="barrier film")
         recs = service.discover_suppliers(params=params)
 
         assert len(recs) > 0
-        # All returned candidates must contain barrier or film in their profile text
-        for r in recs:
-            text = f"{r.company_name} {r.domain} {' '.join(r.available_evidence)}".lower()
-            assert "barrier" in text or "film" in text
+        for recommendation in recs:
+            searchable_text = (
+                f"{recommendation.company_name} {recommendation.domain} "
+                f"{' '.join(recommendation.available_evidence)}"
+            ).lower()
+            assert "barrier" in searchable_text or "film" in searchable_text
 
-    def test_hard_requirement_barrier_film_filtering(self):
-        """Hard filter: require_barrier_films strictly flags vendors lacking barrier capability."""
-        service = SupplierDiscoveryService()
-        params = DiscoveryFilterParams(require_barrier_films=True)
-        recs = service.discover_suppliers(params=params)
+    def test_hard_requirement_barrier_film_filtering(self, discovery_service):
+        """Hard filter: require_barrier_films flags suppliers without barrier evidence."""
+        recs = discovery_service.discover_suppliers(
+            params=DiscoveryFilterParams(require_barrier_films=True)
+        )
+        qualified = [recommendation for recommendation in recs if recommendation.is_hard_match]
+        disqualified = [recommendation for recommendation in recs if not recommendation.is_hard_match]
 
-        # There are 3 live suppliers with barrier film experience in SQLite: Cosmo Films, Arrow Greentech, Jumbo Bag
-        qualified = [r for r in recs if r.is_hard_match]
-        disqualified = [r for r in recs if not r.is_hard_match]
+        assert {recommendation.supplier_id for recommendation in qualified} == {"SYNTH_ALPHA"}
+        assert {recommendation.supplier_id for recommendation in disqualified} == {
+            "SYNTH_BETA", "SYNTH_GAMMA"
+        }
+        for recommendation in disqualified:
+            assert any(
+                "barrier film" in failure.lower()
+                for failure in recommendation.hard_filter_failures
+            )
 
-        assert len(qualified) == 3
-        qualified_names = {q.company_name for q in qualified}
-        assert "Cosmo Films" in qualified_names
-        assert "Arrow Greentech Ltd." in qualified_names
-        assert "Jumbo Bag Limited" in qualified_names
+    def test_hard_requirement_exclude_domain_mismatches(self, discovery_service):
+        """Hard filter: exclude suspicious synthetic company/domain mismatches."""
+        recs = discovery_service.discover_suppliers(
+            params=DiscoveryFilterParams(exclude_domain_mismatches=True)
+        )
+        beta = next(recommendation for recommendation in recs if recommendation.supplier_id == "SYNTH_BETA")
+        alpha = next(recommendation for recommendation in recs if recommendation.supplier_id == "SYNTH_ALPHA")
 
-        # Disqualified suppliers must explicitly cite barrier film failure
-        for dis in disqualified:
-            assert any("barrier film" in fail.lower() for fail in dis.hard_filter_failures)
+        assert beta.is_hard_match is False
+        assert any("domain mismatch" in failure.lower() for failure in beta.hard_filter_failures)
+        assert alpha.is_hard_match is True
+        assert alpha.domain_mismatch_warning is None
 
-    def test_hard_requirement_exclude_domain_mismatches(self):
-        """Hard filter: exclude_domain_mismatches strictly flags suspicious domain anomalies."""
-        service = SupplierDiscoveryService()
-        params = DiscoveryFilterParams(exclude_domain_mismatches=True)
-        recs = service.discover_suppliers(params=params)
-
-        # The 2 domain mismatches (CRUST_698 and CRUST_2552) must be disqualified
-        mismatched_recs = [r for r in recs if r.supplier_id in ("CRUST_698", "CRUST_2552")]
-        for mr in mismatched_recs:
-            assert mr.is_hard_match is False
-            assert any("domain mismatch" in fail.lower() for fail in mr.hard_filter_failures)
-
-    def test_deterministic_ranking_preserves_evaluation_scores(self):
-        """Guardrail: Ranking order must be deterministic and never alter underlying numerical scores."""
-        service = SupplierDiscoveryService()
+    def test_deterministic_ranking_preserves_evaluation_scores(self, discovery_service):
+        """Ranking must be deterministic and must not alter evaluation scores."""
+        service = discovery_service
         recs1 = service.discover_suppliers()
         recs2 = service.discover_suppliers()
 
-        assert len(recs1) == len(recs2)
-        for r1, r2 in zip(recs1, recs2):
-            assert r1.supplier_id == r2.supplier_id
-            assert r1.total_score == r2.total_score
-            assert r1.rank == r2.rank
+        assert len(recs1) == len(recs2) == 3
+        for first, second in zip(recs1, recs2):
+            assert first.supplier_id == second.supplier_id
+            assert first.total_score == second.total_score
+            assert first.rank == second.rank
 
-    def test_evidence_backed_recommendation_contents(self):
-        """Verify each recommendation contains complete evidence lists, warnings, and risks."""
-        service = SupplierDiscoveryService()
-        recs = service.discover_suppliers()
-        cosmo = next(r for r in recs if r.supplier_id == "CRUST_1049")
+    def test_evidence_backed_recommendation_contents(self, discovery_service):
+        """Recommendations must expose evidence, risks and domain warnings."""
+        recs = discovery_service.discover_suppliers()
+        alpha = next(recommendation for recommendation in recs if recommendation.supplier_id == "SYNTH_ALPHA")
 
-        assert cosmo.company_name == "Cosmo Films"
-        assert cosmo.domain == "cosmofilms.com"
-        assert cosmo.total_score >= 70.0
-        assert len(cosmo.available_evidence) > 0
-        assert len(cosmo.procurement_risks) > 0
-        assert cosmo.domain_mismatch_warning is None  # Legitimate domain match
+        assert alpha.company_name == "Alpha Barrier Films"
+        assert alpha.domain == "alphabarrierfilms.example"
+        assert alpha.total_score >= 70.0
+        assert len(alpha.available_evidence) > 0
+        assert len(alpha.procurement_risks) > 0
+        assert alpha.domain_mismatch_warning is None
 
 
 class TestLiveDatabaseDiscoveryIntegration:
