@@ -396,6 +396,22 @@ class QuotationService:
         if not award_notes or not award_notes.strip():
             raise DataValidationError("Award rationale is mandatory when accepting a quotation.")
 
+        quotation = self.repository.get_quotation(quotation_id)
+        if not quotation:
+            raise DataValidationError(f"Quotation '{quotation_id}' not found.")
+        brief = self.repository.get_brief(quotation.brief_id)
+        if not brief:
+            raise DataValidationError(f"Parent sourcing brief '{quotation.brief_id}' not found.")
+
+        is_compliant, disqualifications, _, _ = TechnicalComplianceEvaluator.evaluate_compliance(
+            quotation, brief
+        )
+        if not is_compliant:
+            raise DataValidationError(
+                "Award blocked: quotation fails mandatory technical requirements. "
+                + "; ".join(disqualifications)
+            )
+
         full_note = (
             f"[AWARD CANDIDATE ACCEPTED]: {award_notes.strip()} "
             f"(Governance Notice: Zero automated POs were created. Manual contract execution required)."
