@@ -18,7 +18,17 @@ $env:VENDORIQ_DB_PATH = "data\vendoriq_demo_qa.sqlite"
 ..venv\Scripts\streamlit.exe run app.py
 ```
 
-The command selects an isolated path; it does **not** itself populate supplier records. Confirm the app's active database label before entering demo data. If the database is empty, stop and use a separately prepared synthetic supplier fixture. Do not switch to the production database to make the demo look populated.
+First create the synthetic-only database with the committed seeder. From the repository root run:
+
+```powershell
+New-Item -ItemType Directory -Force data | Out-Null
+.\.venv\Scripts\python.exe scripts\seed_demo.py --db data\vendoriq_demo.sqlite
+$env:APP_MODE = "OFFLINE"
+$env:VENDORIQ_DB_PATH = (Resolve-Path data\vendoriq_demo.sqlite).Path
+.\.venv\Scripts\streamlit.exe run app.py
+```
+
+The seeder refuses the default production filename and refuses to add records to a database that already contains suppliers or briefs. It creates one fictional sourcing brief, three fictional supplier profiles, and deterministic evaluation scorecards. Confirm the sidebar shows the isolated database before proceeding. Do not switch to the production database to make the demo look populated.
 
 ## Scenario
 
@@ -74,4 +84,4 @@ Stop the demo rather than improvising if:
 
 ## Known preparation dependency
 
-The repository currently contains the runbook and synthetic quotation reference data, but this runbook does not create synthetic supplier records or a preloaded demo database. A deterministic synthetic-only database bootstrap and browser rehearsal are still required before calling the demo fully rehearsed.
+The repository now contains a deterministic synthetic-only database bootstrap and synthetic quotation reference data. The bootstrap still needs to be executed locally and followed by a browser rehearsal before calling the demo fully rehearsed.
