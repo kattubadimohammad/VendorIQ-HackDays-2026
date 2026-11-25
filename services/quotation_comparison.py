@@ -305,9 +305,9 @@ class TechnicalComplianceEvaluator:
         # Parse only explicit OTR/WVTR thresholds; never invent engineering limits.
         def _extract_limit(text: str, metric: str):
             patterns = [
-                rf"\\b{metric}\\b\\s*(<=|>=|<|>)\\s*(\\d+(?:\\.\\d+)?)",
-                rf"\\b{metric}\\b[^.;\\n]{{0,50}}?\\b(?:below|under|less than)\\s*(\\d+(?:\\.\\d+)?)",
-                rf"\\b{metric}\\b[^.;\\n]{{0,50}}?\\b(?:maximum|max)\\s*(?:of\\s*)?(\\d+(?:\\.\\d+)?)",
+                rf"\b{metric}\b\s*(<=|>=|<|>)\s*(\d+(?:\.\d+)?)",
+                rf"\b{metric}\b[^.;\n]{{0,50}}?\b(?:below|under|less than)\s*(\d+(?:\.\d+)?)",
+                rf"\b{metric}\b[^.;\n]{{0,50}}?\b(?:maximum|max)\s*(?:of\s*)?(\d+(?:\.\d+)?)",
             ]
             for idx, pattern in enumerate(patterns):
                 match = re.search(pattern, text, flags=re.IGNORECASE)
@@ -320,7 +320,7 @@ class TechnicalComplianceEvaluator:
         def _extract_claim(value):
             if value is None:
                 return None
-            match = re.search(r"[-+]?\\d+(?:\\.\\d+)?", str(value).replace(",", ""))
+            match = re.search(r"[-+]?\d+(?:\.\d+)?", str(value).replace(",", ""))
             return float(match.group(0)) if match else None
 
         brief_text = " ".join([
