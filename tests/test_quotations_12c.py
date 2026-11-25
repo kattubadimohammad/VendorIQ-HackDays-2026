@@ -795,13 +795,10 @@ class TestExplicitBarrierMetricThresholds:
         assert any("OTR" in reason for reason in reasons)
 
     def test_award_service_blocks_supplier_that_fails_brief_limits(self, isolated_repo):
-        brief = isolated_repo.get_brief("BRIEF-12C-001").model_copy(update={
-            "description": "Barrier packaging requires OTR < 1.0 and WVTR < 0.5."
-        })
-        isolated_repo.update_brief(brief)
+        brief = isolated_repo.get_brief("BRIEF-12C-001")
         beta = self._quote(
             brief, "SUPP-BETA-AWARD", "Beta Green Packaging", 0.10,
-            "1.6", "0.7", True
+            "2.6", "1.7", True
         )
         isolated_repo.create_quotation(beta)
         service = QuotationService(repository=isolated_repo)
