@@ -793,3 +793,21 @@ class TestExplicitBarrierMetricThresholds:
         assert compliant is False
         assert score == 0.0
         assert any("OTR" in reason for reason in reasons)
+
+    def test_award_service_blocks_supplier_that_fails_brief_limits(self, isolated_repo):
+        brief = isolated_repo.get_brief("BRIEF-12C-001").model_copy(update={
+            "description": "Barrier packaging requires OTR < 1.0 and WVTR < 0.5."
+        })
+        isolated_repo.update_brief(brief)
+        beta = self._quote(
+            brief, "SUPP-BETA-AWARD", "Beta Green Packaging", 0.10,
+            "1.6", "0.7", True
+        )
+        isolated_repo.create_quotation(beta)
+        service = QuotationService(repository=isolated_repo)
+        with pytest.raises(DataValidationError, match="Award blocked"):
+            service.accept_quotation_for_award(
+                quotation_id=beta.quotation_id,
+                user_name="Test Buyer",
+                award_notes="Test attempt must be blocked.",
+            )
