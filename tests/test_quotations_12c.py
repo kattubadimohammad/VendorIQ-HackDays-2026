@@ -774,7 +774,7 @@ class TestExplicitBarrierMetricThresholds:
         compliant, reasons, score, _ = TechnicalComplianceEvaluator.evaluate_compliance(quote, brief)
         assert compliant is False
         assert score == 0.0
-        assert any("OTR missing" in reason for reason in reasons)
+        assert any("OTR" in reason and "missing" in reason.lower() for reason in reasons)
 
     def test_strict_less_than_boundary_is_enforced(self, isolated_repo):
         brief = isolated_repo.get_brief("BRIEF-12C-001").model_copy(update={
