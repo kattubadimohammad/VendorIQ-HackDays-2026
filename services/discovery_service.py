@@ -43,14 +43,14 @@ def _employee_range_bounds(value: Optional[str]) -> Optional[tuple[int, int]]:
     if not value:
         return None
     normalized = value.strip().replace(",", "")
-    match = re.fullmatch(r"(\\d+)\\s*[-–]\\s*(\\d+)", normalized)
+    match = re.fullmatch(r"(\d+)\s*[-–]\s*(\d+)", normalized)
     if match:
         lower, upper = int(match.group(1)), int(match.group(2))
         return (lower, upper) if lower <= upper else None
-    match = re.fullmatch(r"(\\d+)\\s*\\+", normalized)
+    match = re.fullmatch(r"(\d+)\s*\+", normalized)
     if match:
         return int(match.group(1)), 2**31 - 1
-    match = re.fullmatch(r"(?:over|more than)\\s*(\\d+)", normalized, re.IGNORECASE)
+    match = re.fullmatch(r"(?:over|more than)\s*(\d+)", normalized, re.IGNORECASE)
     if match:
         return int(match.group(1)) + 1, 2**31 - 1
     return None
