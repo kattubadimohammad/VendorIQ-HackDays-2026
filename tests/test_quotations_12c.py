@@ -689,3 +689,102 @@ class TestProductionDatabaseIsolation12C:
         conn_post.close()
 
         assert pre_counts == post_counts, f"Database modified! Pre: {pre_counts}, Post: {post_counts}"
+
+
+# =============================================================================
+# REGRESSION: EXPLICIT OTR/WVTR THRESHOLDS MUST DRIVE DISQUALIFICATION
+# =============================================================================
+
+class TestExplicitBarrierMetricThresholds:
+    """Guard against recommendations that incorrectly mark failed OTR/WVTR claims compliant."""
+
+    def _quote(self, brief, supplier_id, name, price, otr, wvtr, has_tds=False):
+        return SupplierQuotation(
+            quotation_id=f"QUOTE-{supplier_id}",
+            rfq_id=f"RFQ-{supplier_id}",
+            supplier_id=supplier_id,
+            brief_id=brief.brief_id,
+            company_name=name,
+            version=1,
+            status=QuotationStatus.UNDER_REVIEW,
+            commercial=QuotationCommercialData(
+                quoted_currency="USD",
+                quoted_unit_price=price,
+                quoted_quantity=50000,
+                min_order_quantity=5000,
+                lead_time_weeks=4,
+                payment_terms="Net 30",
+                incoterms=Incoterm.FOB,
+                freight_charges=None,
+                taxes_and_duties=None,
+                is_freight_included=False,
+                is_tax_included=False,
+                critical_fields_confirmed=True,
+            ),
+            compliance=QuotationTechnicalCompliance(
+                product_category="Flexible Packaging",
+                structure_description="12u PET / 15u Met-BOPP / 50u PE barrier structure",
+                thickness_microns=77.0,
+                otr_value=otr,
+                wvtr_value=wvtr,
+                test_standards_cited=["ASTM D3985", "ASTM F1249"],
+                has_tds_document=has_tds,
+                mandatory_requirements_met=False,
+            ),
+        )
+
+    def test_beta_screenshot_case_fails_both_explicit_limits_and_is_not_recommended(self, isolated_repo):
+        base = isolated_repo.get_brief("BRIEF-12C-001")
+        brief = base.model_copy(update={
+            "description": "Synthetic flexible barrier packaging. Mandatory OTR < 1.0 cc/m2/day and WVTR < 0.5 g/m2/day."
+        })
+        beta = self._quote(
+            brief, "SUPP-BETA-REG", "Beta Green Packaging", 1.28,
+            "1.6 cc/m2/day (ASTM D3985)", "0.7 g/m2/day (ASTM F1249)", False
+        )
+        alpha = self._quote(
+            brief, "SUPP-ALPHA-REG", "Alpha Barrier Films", 1.52,
+            "0.8 cc/m2/day (ASTM D3985)", "0.4 g/m2/day (ASTM F1249)", True
+        )
+
+        matrix = QuotationComparisonEngine().compare_quotations(
+            quotations=[beta, alpha], brief=brief, target_currency="USD"
+        )
+        rows = {row.supplier_id: row for row in matrix.rows}
+        beta_row = rows["SUPP-BETA-REG"]
+
+        assert beta_row.mandatory_requirements_met is False
+        assert beta_row.technical_score == 0.0
+        assert beta_row.recommendation_type == ComparisonRecommendationType.NON_COMPLIANT_DISQUALIFIED
+        assert any("OTR" in reason and "1.6" in reason for reason in beta_row.disqualification_reasons)
+        assert any("WVTR" in reason and "0.7" in reason for reason in beta_row.disqualification_reasons)
+        assert matrix.primary_recommendation is not None
+        assert matrix.primary_recommendation.supplier_id == "SUPP-ALPHA-REG"
+        assert matrix.secondary_recommendation is None
+        assert beta_row in matrix.disqualified_candidates
+
+    def test_missing_numeric_barrier_metric_fails_closed_when_brief_sets_limit(self, isolated_repo):
+        brief = isolated_repo.get_brief("BRIEF-12C-001").model_copy(update={
+            "description": "High barrier packaging with mandatory OTR < 2.0 cc/m2/day and WVTR < 1.0 g/m2/day."
+        })
+        quote = self._quote(
+            brief, "SUPP-MISSING", "Missing Metrics Supplier", 0.50,
+            None, "0.8 g/m2/day", False
+        )
+        compliant, reasons, score, _ = TechnicalComplianceEvaluator.evaluate_compliance(quote, brief)
+        assert compliant is False
+        assert score == 0.0
+        assert any("OTR missing" in reason for reason in reasons)
+
+    def test_strict_less_than_boundary_is_enforced(self, isolated_repo):
+        brief = isolated_repo.get_brief("BRIEF-12C-001").model_copy(update={
+            "description": "Barrier film requires OTR < 1.0 and WVTR < 0.5."
+        })
+        quote = self._quote(
+            brief, "SUPP-BOUNDARY", "Boundary Supplier", 1.0,
+            "1.0", "0.49", True
+        )
+        compliant, reasons, score, _ = TechnicalComplianceEvaluator.evaluate_compliance(quote, brief)
+        assert compliant is False
+        assert score == 0.0
+        assert any("OTR" in reason for reason in reasons)
