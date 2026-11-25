@@ -157,7 +157,7 @@ def render_quotation_view(
                 eff_supp_id = target_rfq.supplier_id
                 eff_company = target_rfq.supplier.company_name
             else:
-                st.info("ℹ️ No prior RFQs found for this brief. A linked RFQ record will be automatically initialized for the selected supplier to maintain procurement audit lineage.")
+                st.info("ℹ️ No prior RFQ exists for this brief. A draft RFQ is created only when you explicitly persist a quotation; simply opening this page does not create records.")
                 selected_supp_key = st.selectbox("Select Target Supplier", supp_options)
                 eff_supp_id = selected_supp_key.split("(")[-1].strip(")")
                 eff_company = supp_map[eff_supp_id].company_name
@@ -171,7 +171,7 @@ def render_quotation_view(
         with sub_tab_file:
             uploaded_file = st.file_uploader(
                 "Upload Supplier Quotation Document",
-                type=["pdf", "xlsx", "xls"],
+                type=["pdf", "xlsx"],
                 help="Allowed formats: PDF, OpenXML Excel (.xlsx). Maximum file size: 10 MB. Legacy binary .xls will be rejected.",
             )
 
@@ -297,35 +297,41 @@ def render_quotation_view(
             with st.form("manual_quote_form"):
                 mc_col1, mc_col2, mc_col3 = st.columns(3)
                 with mc_col1:
-                    m_price = st.number_input("Unit Price", min_value=0.01, value=1.45, step=0.01, format="%.4f")
+                    m_price = st.number_input("Unit Price", min_value=0.0, value=0.0, step=0.01, format="%.4f", help="Enter the actual supplier-quoted price. Zero means not entered.")
                     m_curr = st.selectbox("Quoted Currency", ["USD", "INR", "EUR", "GBP"], index=0)
-                    m_qty = st.number_input("Quoted Quantity", min_value=1, value=50000, step=1000)
+                    m_qty = st.number_input("Quoted Quantity", min_value=0, value=0, step=1000, help="Enter the quantity stated in the supplier quotation.")
                 with mc_col2:
-                    m_moq = st.number_input("Minimum Order Quantity (MOQ)", min_value=1, value=10000, step=1000)
-                    m_lead = st.number_input("Production Lead Time (Weeks)", min_value=1, value=4, step=1)
+                    m_moq = st.number_input("Minimum Order Quantity (MOQ)", min_value=0, value=0, step=1000, help="Enter the supplier-confirmed MOQ.")
+                    m_lead = st.number_input("Production Lead Time (Weeks)", min_value=0, value=0, step=1, help="Enter the supplier-confirmed lead time.")
                     m_inco = st.selectbox("Incoterms", [i.value for i in Incoterm], index=1)
                 with mc_col3:
-                    m_pay = st.text_input("Payment Terms", value="Net 30 days upon inspection")
-                    m_freight = st.number_input("Freight Charges (if separate)", min_value=0.0, value=0.0, step=100.0)
-                    m_taxes = st.number_input("Duties / Taxes (if separate)", min_value=0.0, value=0.0, step=100.0)
+                    m_pay = st.text_input("Payment Terms", value="", placeholder="Enter supplier-quoted payment terms")
+                    m_freight = st.number_input("Freight Charges (if separate)", min_value=0.0, value=0.0, step=100.0, help="Leave at 0 when not provided; it will be stored as missing, not confirmed zero.")
+                    m_taxes = st.number_input("Duties / Taxes (if separate)", min_value=0.0, value=0.0, step=100.0, help="Leave at 0 when not provided; it will be stored as missing, not confirmed zero.")
 
                 st.markdown("##### Technical Specifications")
                 mt_col1, mt_col2 = st.columns(2)
                 with mt_col1:
-                    m_struct = st.text_input("Structure Description", value="12u PET / 15u Met-BOPP / 50u Polyethylene")
-                    m_thick = st.number_input("Thickness (microns)", min_value=1.0, value=77.0, step=1.0)
-                    m_otr = st.text_input("OTR Claim", value="1.1 cc/m2/day (ASTM D3985)")
+                    m_struct = st.text_input("Structure Description", value="", placeholder="Enter the supplier-quoted material structure")
+                    m_thick = st.number_input("Thickness (microns)", min_value=0.0, value=0.0, step=1.0)
+                    m_otr = st.text_input("OTR Claim", value="", placeholder="Enter supplier claim and test method, if provided")
                 with mt_col2:
-                    m_wvtr = st.text_input("WVTR Claim", value="0.7 g/m2/day (ASTM F1249)")
-                    m_standards = st.multiselect("Test Standards Cited", ["ASTM D3985", "ASTM F1249", "ISO 15105"], default=["ASTM D3985"])
-                    m_has_tds = st.checkbox("Authentic TDS Attached", value=False)
+                    m_wvtr = st.text_input("WVTR Claim", value="", placeholder="Enter supplier claim and test method, if provided")
+                    m_standards = st.multiselect("Test Standards Cited", ["ASTM D3985", "ASTM F1249", "ISO 15105"], default=[])
+                    m_tds_claim = st.checkbox("Supplier states a TDS is available (document not attached or verified)", value=False)
 
-                m_notes = st.text_area("Reviewer Notes", value="Manual quotation entered from formal email proposal.")
+                m_notes = st.text_area("Reviewer Notes", value="", placeholder="Record the source and any buyer review notes.")
 
                 submit_manual = st.form_submit_button("Submit Manual Quotation", type="primary")
 
             if submit_manual:
                 try:
+                    if m_price <= 0 or m_qty <= 0 or m_moq <= 0 or m_lead <= 0:
+                        raise ValueError("Enter a positive supplier-quoted unit price, quantity, MOQ, and lead time before submitting.")
+                    if m_thick <= 0:
+                        raise ValueError("Enter a positive thickness only when it is stated in the supplier quotation.")
+                    if m_tds_claim:
+                        m_notes = (m_notes + "\\nSupplier states a TDS is available; no document was attached or independently verified.").strip()
                     comm_data = QuotationCommercialData(
                         quoted_currency=m_curr,
                         quoted_unit_price=m_price,
@@ -346,8 +352,8 @@ def render_quotation_view(
                         otr_value=m_otr,
                         wvtr_value=m_wvtr,
                         test_standards_cited=m_standards,
-                        certifications_offered=["ISO 9001"],
-                        has_tds_document=m_has_tds,
+                        certifications_offered=[],
+                        has_tds_document=False,  # Manual entry does not attach or verify a TDS document.
                         mandatory_requirements_met=False,  # Recomputed against the active sourcing brief during comparison.
                     )
                     target_rfq_id = eff_rfq_id
