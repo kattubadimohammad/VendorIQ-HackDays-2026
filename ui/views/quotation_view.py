@@ -49,6 +49,7 @@ from ui.components import (
     render_evidence_legend,
 )
 from utils.file_storage import MAX_FILE_SIZE_BYTES, validate_quotation_file
+from services.quotation_comparison import TechnicalComplianceEvaluator
 
 
 def _ensure_rfq_for_supplier(service: DashboardDataService, brief, supplier, user_name: str) -> str:
@@ -317,7 +318,7 @@ def render_quotation_view(
                 with mt_col2:
                     m_wvtr = st.text_input("WVTR Claim", value="0.7 g/m2/day (ASTM F1249)")
                     m_standards = st.multiselect("Test Standards Cited", ["ASTM D3985", "ASTM F1249", "ISO 15105"], default=["ASTM D3985"])
-                    m_has_tds = st.checkbox("Authentic TDS Attached", value=True)
+                    m_has_tds = st.checkbox("Authentic TDS Attached", value=False)
 
                 m_notes = st.text_area("Reviewer Notes", value="Manual quotation entered from formal email proposal.")
 
@@ -347,7 +348,7 @@ def render_quotation_view(
                         test_standards_cited=m_standards,
                         certifications_offered=["ISO 9001"],
                         has_tds_document=m_has_tds,
-                        mandatory_requirements_met=True,
+                        mandatory_requirements_met=False,  # Recomputed against the active sourcing brief during comparison.
                     )
                     target_rfq_id = eff_rfq_id
                     if not target_rfq_id:
@@ -754,6 +755,18 @@ def render_quotation_view(
                 target_award_options = {f"{q.company_name} – Version {q.version} ({q.quotation_id}) [{q.status.value}]": q for q in awardable_quotes}
                 selected_award_key = st.selectbox("Select Candidate for Award Decision", list(target_award_options.keys()))
                 award_candidate = target_award_options[selected_award_key]
+                award_eligible, award_failures, _, award_technical_notes = TechnicalComplianceEvaluator.evaluate_compliance(
+                    award_candidate, active_brief
+                )
+                if not award_eligible:
+                    st.error(
+                        "🚫 Award blocked by mandatory technical requirements: "
+                        + "; ".join(award_failures)
+                    )
+                elif "unverified" in award_technical_notes.lower() or not award_candidate.compliance.has_tds_document:
+                    st.warning(
+                        "⚠️ Technical claims are not independently verified. Obtain authentic TDS and accredited laboratory evidence before contract award."
+                    )
 
                 st.markdown(
                     f"""
@@ -787,7 +800,7 @@ def render_quotation_view(
                             "I acknowledge that automated POs are disabled and manual contract execution is required.",
                             value=True
                         )
-                        btn_award = st.form_submit_button("🏆 Authorize Supplier Award", type="primary")
+                        btn_award = st.form_submit_button("🏆 Authorize Supplier Award", type="primary", disabled=not award_eligible)
 
                     if btn_award:
                         if not confirm_manual_po:
