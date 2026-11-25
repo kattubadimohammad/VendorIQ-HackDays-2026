@@ -301,6 +301,64 @@ class TechnicalComplianceEvaluator:
                     f"but quotation offers '{comp.structure_description}' without verified barrier layers."
                 )
 
+        # 1B. Enforce explicit numeric barrier limits stated in the buyer brief.
+        # Parse only explicit OTR/WVTR thresholds; never invent engineering limits.
+        def _extract_limit(text: str, metric: str):
+            patterns = [
+                rf"\\b{metric}\\b\\s*(<=|>=|<|>)\\s*(\\d+(?:\\.\\d+)?)",
+                rf"\\b{metric}\\b[^.;\\n]{{0,50}}?\\b(?:below|under|less than)\\s*(\\d+(?:\\.\\d+)?)",
+                rf"\\b{metric}\\b[^.;\\n]{{0,50}}?\\b(?:maximum|max)\\s*(?:of\\s*)?(\\d+(?:\\.\\d+)?)",
+            ]
+            for idx, pattern in enumerate(patterns):
+                match = re.search(pattern, text, flags=re.IGNORECASE)
+                if match:
+                    if idx == 0:
+                        return match.group(1), float(match.group(2))
+                    return "<", float(match.group(1))
+            return None
+
+        def _extract_claim(value):
+            if value is None:
+                return None
+            match = re.search(r"[-+]?\\d+(?:\\.\\d+)?", str(value).replace(",", ""))
+            return float(match.group(0)) if match else None
+
+        brief_text = " ".join([
+            brief.title or "",
+            brief.description or "",
+            brief.notes or "",
+        ])
+        for metric, claim_value, label, units in (
+            ("OTR", comp.otr_value, "Oxygen Transmission Rate", "cc/m2/day"),
+            ("WVTR", comp.wvtr_value, "Water Vapor Transmission Rate", "g/m2/day"),
+        ):
+            limit = _extract_limit(brief_text, metric)
+            if limit:
+                operator, threshold = limit
+                actual = _extract_claim(claim_value)
+                if actual is None:
+                    disqualifications.append(
+                        f"Mandatory {label} missing: brief requires {metric} {operator} {threshold:g} {units}; no numeric quotation value was supplied."
+                    )
+                else:
+                    failed = {
+                        "<": actual >= threshold,
+                        "<=": actual > threshold,
+                        ">": actual <= threshold,
+                        ">=": actual < threshold,
+                    }[operator]
+                    if failed:
+                        disqualifications.append(
+                            f"Mandatory {label} failure: quoted {metric} {actual:g} {units} does not meet brief limit {metric} {operator} {threshold:g} {units}."
+                        )
+
+        # A barrier quotation without documentary test evidence remains a claim,
+        # not independently verified technical compliance. Preserve that distinction.
+        if is_barrier_mandated and not comp.has_tds_document:
+            notes_parts.append(
+                "Technical evidence gap: authentic TDS/laboratory evidence was not attached; barrier performance remains unverified."
+            )
+
         # 2. Inherit existing disqualification reasons from quotation parsing
         if comp.disqualification_reasons:
             for r in comp.disqualification_reasons:
