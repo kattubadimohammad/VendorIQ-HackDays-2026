@@ -255,7 +255,7 @@ def render_copilot_view(
                     "role": "assistant",
                     "content": (
                         f"Hello! I am your AI Sourcing Copilot for **{current_brief.title}**. "
-                        "I am grounded strictly in the 18 candidate suppliers in `vendoriq.sqlite`. "
+                        f"I am grounded in {len(suppliers)} candidate supplier records from the active database `{active_db_name}`. "
                         "You can ask me to analyze candidate capabilities, summarize risk alerts, or compare specific suppliers."
                     ),
                 }
