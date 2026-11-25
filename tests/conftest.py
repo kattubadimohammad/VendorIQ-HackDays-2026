@@ -68,7 +68,6 @@ def pytest_collection_modifyitems(config, items):
     has_private_baseline = Path("vendoriq_backup_release_phase13.sqlite").is_file()
     has_production_db = Path("vendoriq.sqlite").is_file()
     baseline_only_classes = {
-        "TestSupplierDiscoveryService",
         "TestLiveDatabaseDiscoveryIntegration",
         "TestLiveDatabaseEvidenceIntegration",
         "TestProductionDatabaseIsolation12C",
