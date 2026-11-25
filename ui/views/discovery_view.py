@@ -183,7 +183,7 @@ def render_discovery_view(
     disqualified = total_matches - hard_matches - review_required
 
     # KPI Summary Cards
-    col_k1, col_k2, col_k3, col_k4 = st.columns(4)
+    col_k1, col_k2, col_k3, col_k4, col_k5 = st.columns(5)
     with col_k1:
         st.metric("Discovered Candidates", f"{total_matches} Vendors", f"From {len(suppliers)} in SQLite")
     with col_k2:
@@ -192,7 +192,7 @@ def render_discovery_view(
         st.metric("Needs Eligibility Review", f"{review_required} Vendors", "Missing or ambiguous evidence")
     with col_k4:
         st.metric("Confirmed Constraint Failures", f"{disqualified} Vendors", "Confirmed failures only")
-    with col_k4:
+    with col_k5:
         top_score = recommendations[0].total_score if recommendations else 0.0
         st.metric("Top Candidate Score", f"{top_score:.1f} / 100", "Deterministic Scorecard")
 
@@ -240,19 +240,21 @@ def render_discovery_view(
                     with col_rh1:
                         rank_badge = f"**#{rec.rank}**"
                         uncertain_reasons = [
-            reason for reason in rec.hard_filter_failures
-            if "cannot confirm" in reason.lower() or "missing" in reason.lower()
-        ]
-        confirmed_failures = [
-            reason for reason in rec.hard_filter_failures
-            if reason not in uncertain_reasons
-        ]
-        if rec.is_hard_match:
-            hard_pill = "🟢 **MEETS ACTIVE FILTERS (DIRECTORY DATA)**"
-        elif uncertain_reasons and not confirmed_failures:
-            hard_pill = "🟠 **ELIGIBILITY NEEDS REVIEW**"
-        else:
-            hard_pill = "🔴 **CONFIRMED CONSTRAINT FAILURE**"
+                            reason for reason in rec.hard_filter_failures
+                            if "cannot confirm" in reason.lower() or "missing" in reason.lower()
+                        ]
+                        confirmed_failures = [
+                            reason for reason in rec.hard_filter_failures
+                            if reason not in uncertain_reasons
+                        ]
+                        if rec.is_hard_match:
+                            hard_pill = "🟢 **MEETS ACTIVE FILTERS (DIRECTORY DATA)**"
+                        elif uncertain_reasons and not confirmed_failures:
+                            hard_pill = "🟠 **ELIGIBILITY NEEDS REVIEW**"
+                        elif uncertain_reasons:
+                            hard_pill = "🟠 **REVIEW REQUIRED — POSSIBLE FAILURE**"
+                        else:
+                            hard_pill = "🔴 **CONFIRMED CONSTRAINT FAILURE**"
                         st.markdown(f"#### {rank_badge} {rec.company_name} &nbsp; {hard_pill}")
                         st.markdown(
                             f"🌐 [{rec.domain}](https://{rec.domain}) &nbsp;|&nbsp; "
