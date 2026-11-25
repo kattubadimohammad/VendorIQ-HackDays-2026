@@ -412,6 +412,14 @@ class QuotationService:
                 + "; ".join(disqualifications)
             )
 
+        barrier_brief = any(token in f"{brief.title} {brief.description}".lower()
+                            for token in ("barrier", "evoh", "alu foil", "high barrier"))
+        if barrier_brief and not quotation.compliance.has_tds_document:
+            raise DataValidationError(
+                "Award blocked: an authentic Technical Data Sheet and supporting laboratory evidence "
+                "must be received and reviewed for barrier-performance claims before award."
+            )
+
         full_note = (
             f"[AWARD CANDIDATE ACCEPTED]: {award_notes.strip()} "
             f"(Governance Notice: Zero automated POs were created. Manual contract execution required)."
