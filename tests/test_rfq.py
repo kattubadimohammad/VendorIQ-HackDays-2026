@@ -464,12 +464,16 @@ def test_rfq_kpis_computation(repo, sample_brief, sample_supplier, tmp_path):
     rfq1 = service.create_and_persist_rfq(sample_brief, sample_supplier)
     rfq2 = service.create_and_persist_rfq(sample_brief, sample_supplier)
 
+    # Creation is intentionally idempotent for the same brief/supplier pair:
+    # a repeated request reuses the existing RFQ rather than duplicating it.
+    assert rfq2.rfq_id == rfq1.rfq_id
+
     service.submit_for_approval(rfq2.rfq_id, "Buyer", "Submit")
     service.approve_rfq(rfq2.rfq_id, "Director", "Approved")
 
     kpis = service.get_rfq_kpis(sample_brief.brief_id)
-    assert kpis["total"] == 2
-    assert kpis["draft"] == 1
+    assert kpis["total"] == 1
+    assert kpis["draft"] == 0
     assert kpis["approved"] == 1
     assert kpis["pending_approval"] == 0
     assert kpis["sent"] == 0
