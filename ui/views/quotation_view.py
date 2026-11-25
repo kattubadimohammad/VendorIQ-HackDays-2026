@@ -758,10 +758,20 @@ def render_quotation_view(
                 award_eligible, award_failures, _, award_technical_notes = TechnicalComplianceEvaluator.evaluate_compliance(
                     award_candidate, active_brief
                 )
+                barrier_brief = any(
+                    token in f"{active_brief.title} {active_brief.description}".lower()
+                    for token in ("barrier", "evoh", "alu foil", "high barrier")
+                )
+                award_evidence_ready = not barrier_brief or award_candidate.compliance.has_tds_document
+                award_ready = award_eligible and award_evidence_ready
                 if not award_eligible:
                     st.error(
                         "🚫 Award blocked by mandatory technical requirements: "
                         + "; ".join(award_failures)
+                    )
+                if award_eligible and not award_evidence_ready:
+                    st.error(
+                        "🚫 Award blocked: an authentic TDS and supporting laboratory evidence must be received and reviewed for barrier-performance claims."
                     )
                 elif "unverified" in award_technical_notes.lower() or not award_candidate.compliance.has_tds_document:
                     st.warning(
@@ -800,7 +810,7 @@ def render_quotation_view(
                             "I acknowledge that automated POs are disabled and manual contract execution is required.",
                             value=True
                         )
-                        btn_award = st.form_submit_button("🏆 Authorize Supplier Award", type="primary", disabled=not award_eligible)
+                        btn_award = st.form_submit_button("🏆 Authorize Supplier Award", type="primary", disabled=not award_ready)
 
                     if btn_award:
                         if not confirm_manual_po:
