@@ -248,7 +248,7 @@ def render_quotation_view(
                                 "Verification Status": p.status.value,
                             })
                         if prov_rows:
-                            st.dataframe(pd.DataFrame(prov_rows), use_container_width=True)
+                            st.dataframe(pd.DataFrame(prov_rows), width="stretch")
 
                         # Technical Specs
                         st.markdown("##### 🔬 Technical Compliance Indicators")
@@ -422,7 +422,7 @@ def render_quotation_view(
                         "Status": p.status.value,
                         "Confirmed By": p.confirmed_by or "Pending Buyer Review",
                     })
-                st.dataframe(pd.DataFrame(prov_df_rows), use_container_width=True)
+                st.dataframe(pd.DataFrame(prov_df_rows), width="stretch")
             else:
                 st.caption("Zero provenance records attached (legacy or synthetic submission).")
 
@@ -528,7 +528,7 @@ def render_quotation_view(
                         "Actor": a.changed_by,
                         "Comments": a.comments,
                     })
-                st.dataframe(pd.DataFrame(audit_rows), use_container_width=True)
+                st.dataframe(pd.DataFrame(audit_rows), width="stretch")
             else:
                 st.caption("No historical audit entries found.")
 
@@ -635,7 +635,7 @@ def render_quotation_view(
                     "Category": r.recommendation_type.value,
                 })
 
-            st.dataframe(pd.DataFrame(matrix_rows), use_container_width=True)
+            st.dataframe(pd.DataFrame(matrix_rows), width="stretch")
 
             # Transparent Calculation Breakdowns
             with st.expander("🔍 Transparent Mathematical & FX Calculation Breakdowns", expanded=False):
@@ -867,4 +867,4 @@ def render_quotation_view(
                             "Sign-off Comments": a.comments,
                         }
                         for a in candidate_audit
-                    ]), use_container_width=True)
+                    ]), width="stretch")
