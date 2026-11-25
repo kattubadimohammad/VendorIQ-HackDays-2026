@@ -586,6 +586,8 @@ class TestQuotationComparisonAndRecommendations:
             compliance=QuotationTechnicalCompliance(
                 product_category="Packaging",
                 structure_description="EVOH Barrier Film",
+                otr_value="1.5 cc/m2/day",
+                wvtr_value="0.8 g/m2/day",
                 mandatory_requirements_met=True,
                 has_tds_document=True,
             ),
@@ -796,8 +798,10 @@ class TestExplicitBarrierMetricThresholds:
 
     def test_award_service_blocks_supplier_that_fails_brief_limits(self, isolated_repo):
         brief = isolated_repo.get_brief("BRIEF-12C-001")
+        # Reuse the supplier and SENT RFQ seeded by isolated_repo so all
+        # quotation foreign keys reference valid parent records.
         beta = self._quote(
-            brief, "SUPP-BETA-AWARD", "Beta Green Packaging", 0.10,
+            brief, "SUPP-BETA", "Beta Global Packaging Inc", 0.10,
             "2.6", "1.7", True
         )
         isolated_repo.create_quotation(beta)
