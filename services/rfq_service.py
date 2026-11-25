@@ -223,7 +223,16 @@ class RFQService:
         shortlist_id: Optional[str] = None,
         **kwargs,
     ) -> RFQDocumentRecord:
-        """Prepare and immediately persist an RFQ draft in SQLite."""
+        """Prepare and persist one RFQ per supplier/brief; repeated clicks are idempotent."""
+        existing = self.repository.list_supplier_rfqs(
+            brief_id=brief.brief_id,
+            supplier_id=supplier.supplier_id,
+        )
+        if existing:
+            # Reuse the most recently updated package instead of creating duplicates
+            # when a user double-clicks or retries after a slow Streamlit rerun.
+            existing.sort(key=lambda item: item.updated_at or item.created_at, reverse=True)
+            return existing[0]
         rfq = self.prepare_supplier_rfq(brief, supplier, shortlist_id=shortlist_id, **kwargs)
         return self.repository.create_supplier_rfq(rfq)
 
