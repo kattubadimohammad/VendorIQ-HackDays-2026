@@ -554,6 +554,8 @@ class TestQuotationComparisonAndRecommendations:
             compliance=QuotationTechnicalCompliance(
                 product_category="Packaging",
                 structure_description="EVOH Barrier Film",
+                otr_value="1.1 cc/m2/day",
+                wvtr_value="0.7 g/m2/day",
                 mandatory_requirements_met=True,
                 has_tds_document=True,
             ),
@@ -640,6 +642,9 @@ class TestQuotationServiceComparisonIntegration:
             compliance=QuotationTechnicalCompliance(
                 product_category="Flexible Packaging",
                 structure_description="EVOH Barrier Pouches",
+                otr_value="1.1 cc/m2/day",
+                wvtr_value="0.7 g/m2/day",
+                has_tds_document=True,
                 mandatory_requirements_met=True,
             ),
         )
