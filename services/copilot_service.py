@@ -14,6 +14,7 @@ Key Safeguards:
 
 import json
 import logging
+import os
 import re
 import uuid
 from typing import List, Dict, Any, Optional
@@ -324,11 +325,11 @@ class AISourcingCopilot:
         Answer buyer procurement queries grounded in active SQLite records and scorecards.
         """
         suppliers = self.repository.list_suppliers(limit=100)
-        evals = self.repository.list_evaluations_for_run(
-            self.repository.list_scoring_runs_for_brief(current_brief.brief_id)[0]["run_id"]
-        ) if self.repository.list_scoring_runs_for_brief(current_brief.brief_id) else []
-
         top_candidates = self.recommend_candidates(brief=current_brief, top_k=3)
+        runs = self.repository.list_scoring_runs_for_brief(current_brief.brief_id)
+        evals = self.repository.list_evaluations_for_run(runs[0]["run_id"]) if runs else []
+
+        db_name = os.path.basename(self.repository.db_path) or "database.sqlite"
 
         if self.is_online:
             try:
@@ -339,7 +340,7 @@ class AISourcingCopilot:
                     assistant_message=response_text,
                     recommended_suppliers=top_candidates,
                     provenance=ProvenanceClassification.AI_ASSESSMENT,
-                    evidence_sources=["vendoriq.sqlite (supplier_profiles, evaluations)"],
+                    evidence_sources=[f"{db_name} (supplier_profiles, evaluations)"],
                     grounded_record_count=len(suppliers),
                     model_used=self.model_name,
                 )
@@ -352,7 +353,7 @@ class AISourcingCopilot:
             assistant_message=fallback_msg,
             recommended_suppliers=top_candidates,
             provenance=ProvenanceClassification.AI_ASSESSMENT,
-            evidence_sources=["vendoriq.sqlite (Deterministic Grounding)"],
+            evidence_sources=[f"{db_name} (Deterministic Grounding)"],
             grounded_record_count=len(suppliers),
             model_used="Deterministic Fallback (Offline Mode)",
         )
@@ -403,7 +404,8 @@ class AISourcingCopilot:
         Answer the buyer query thoroughly and professionally based ONLY on the grounded records above.
         Follow all procurement rules:
         - Never invent certifications or capacity figures.
-        - Never attribute a domain to a supplier unless explicitly documented in the grounded records. Note: 'ecpulse.com' belongs to Biopac India Corporation Ltd and 'kediainfo.com' belongs to VIKAAS PAPER FLEXO PACKAGING LIMITED. Cosmo Films uses 'cosmofilms.com' and Arrow Greentech Ltd. uses 'arrowgreentech.com'.
+        - Never attribute a domain or website to a supplier unless explicitly documented in the grounded records above.
+        - Only reference directory domains and audit warnings that appear in the grounded records.
         - Clarify that descriptions are self-reported.
         - State clearly that physical facility audits are required before RFQ award.
         """
@@ -470,9 +472,18 @@ class AISourcingCopilot:
                 lines.append("- No domain mismatches detected among active supplier profiles.")
             lines.append("")
             lines.append("Database Evidence Verification:")
-            lines.append("- `ecpulse.com` is registered in directory records for **Biopac India Corporation Ltd** (`CRUST_698`) — flagged for domain mismatch.")
-            lines.append("- `kediainfo.com` is registered in directory records for **VIKAAS PAPER FLEXO PACKAGING LIMITED** (`CRUST_2552`) — flagged for domain mismatch.")
-            lines.append("- Suppliers such as **Cosmo Films** (`cosmofilms.com`) and **Arrow Greentech Ltd.** (`arrowgreentech.com`) have matching directory domains.")
+            if flagged:
+                for f in flagged:
+                    lines.append(
+                        f"- `{f['domain']}` is registered in directory records for **{f['company_name']}** (`{f['supplier_id']}`) — flagged for domain mismatch."
+                    )
+            flagged_ids = {f["supplier_id"] for f in flagged}
+            matching_suppliers = [s for s in suppliers if s.supplier_id not in flagged_ids and s.domain]
+            if matching_suppliers:
+                for s in matching_suppliers:
+                    lines.append(
+                        f"- Suppliers such as **{s.company_name}** (`{s.domain}`) have matching directory domains."
+                    )
             lines.append("Never infer or assume a supplier's official domain without independent DNS, documentary, or corporate registry verification.")
             return "\n".join(lines)
 

@@ -24,6 +24,9 @@ from core.models import (
     ExtractedSourcingRequirements,
     CopilotRecommendation,
     CopilotQueryResponse,
+    SupplierEvidenceRecord,
+    EvidenceCategory,
+    EvidenceStatus,
 )
 from core.provenance import ProvenanceClassification
 from db.connection import init_db
@@ -304,20 +307,116 @@ class TestLiveDatabaseCopilotIntegration:
         assert recs[2].company_name == "Biopac India Corporation Ltd"
         assert recs[2].total_score == 76.50
 
-    def test_copilot_domain_attribution_accuracy_live_database(self):
+    def test_copilot_domain_attribution_accuracy_isolated_database(self, temp_db_path):
         """
-        Verify that Copilot domain mismatch and risk answers accurately attribute domains:
+        Verify that Copilot domain mismatch and risk answers accurately attribute domains
+        using an isolated temporary test database populated with supplier profiles and evidence:
         - ecpulse.com belongs to Biopac India Corporation Ltd (CRUST_698)
         - kediainfo.com belongs to VIKAAS PAPER FLEXO PACKAGING LIMITED (CRUST_2552)
         - cosmofilms.com belongs to Cosmo Films (no mismatch)
         - arrowgreentech.com belongs to Arrow Greentech Ltd. (no mismatch)
         - Never incorrectly attributes ecpulse.com or kediainfo.com to Cosmo Films or Arrow Greentech.
+        - Strictly isolated: never reads, writes, or opens vendoriq.sqlite.
         """
-        if not os.path.exists("vendoriq.sqlite"):
-            pytest.skip("vendoriq.sqlite not found.")
+        repo = VendorIQRepository(db_path=temp_db_path)
+        assert repo.db_path == temp_db_path
+        assert "vendoriq.sqlite" not in repo.db_path
 
-        repo = VendorIQRepository(db_path="vendoriq.sqlite")
-        brief = repo.list_briefs()[0]
+        brief = SourcingBrief(
+            brief_id="BRIEF-ISOLATED-TEST",
+            title="Sustainable Packaging Sourcing Project",
+            buyer_organization="EcoProcure Corp",
+            description="Testing isolated copilot domain risk attribution.",
+            criteria=SourcingCriteria(
+                target_industries=["Packaging and Containers Manufacturing"],
+                target_geographies=["India"],
+                min_company_size=50,
+            ),
+        )
+        repo.create_brief(brief)
+
+        test_suppliers = [
+            SupplierProfile(
+                supplier_id="CRUST_698",
+                company_name="Biopac India Corporation Ltd",
+                domain="ecpulse.com",
+                description="Manufacturer of biodegradable packaging and food dinnerware.",
+                employee_range="201-500",
+                headquarters_country="India",
+                headquarters_city="Silvassa",
+            ),
+            SupplierProfile(
+                supplier_id="CRUST_2552",
+                company_name="VIKAAS PAPER FLEXO PACKAGING LIMITED",
+                domain="kediainfo.com",
+                description="Corrugated box division of Kedia Group.",
+                employee_range="51-200",
+                headquarters_country="India",
+                headquarters_city="Mumbai",
+            ),
+            SupplierProfile(
+                supplier_id="CRUST_1049",
+                company_name="Cosmo Films",
+                domain="cosmofilms.com",
+                description="Global leader in specialty films, flexible packaging, and barrier applications.",
+                employee_range="1001-5000",
+                headquarters_country="India",
+                headquarters_city="New Delhi",
+            ),
+            SupplierProfile(
+                supplier_id="CRUST_356",
+                company_name="Arrow Greentech Ltd.",
+                domain="arrowgreentech.com",
+                description="Pioneer in water-soluble films and bio-based packaging.",
+                employee_range="51-200",
+                headquarters_country="India",
+                headquarters_city="Mumbai",
+            ),
+        ]
+        for s in test_suppliers:
+            repo.create_supplier(s)
+
+        test_evidence = [
+            SupplierEvidenceRecord(
+                evidence_id="EVID-TEST-698-DOM",
+                supplier_id="CRUST_698",
+                category=EvidenceCategory.COMPANY_WEBSITE_DOMAIN,
+                claim="Domain 'ecpulse.com' is associated with Biopac India Corporation Ltd in Crustdata directory index, but flagged for domain mismatch.",
+                status=EvidenceStatus.UNVERIFIED,
+                source_name="Crustdata Directory Index (Flagged)",
+                reviewer_notes="Stem 'ecpulse' shares no tokens with company name.",
+            ),
+            SupplierEvidenceRecord(
+                evidence_id="EVID-TEST-2552-DOM",
+                supplier_id="CRUST_2552",
+                category=EvidenceCategory.COMPANY_WEBSITE_DOMAIN,
+                claim="Domain 'kediainfo.com' is associated with VIKAAS PAPER FLEXO PACKAGING LIMITED in Crustdata directory index, but flagged for domain mismatch.",
+                status=EvidenceStatus.UNVERIFIED,
+                source_name="Crustdata Directory Index (Flagged)",
+                reviewer_notes="Stem 'kediainfo' shares no tokens with company name.",
+            ),
+            SupplierEvidenceRecord(
+                evidence_id="EVID-TEST-1049-DOM",
+                supplier_id="CRUST_1049",
+                category=EvidenceCategory.COMPANY_WEBSITE_DOMAIN,
+                claim="Corporate web domain: cosmofilms.com",
+                status=EvidenceStatus.SELF_REPORTED,
+                source_name="Crustdata Company Search",
+                reviewer_notes="Domain matches company name.",
+            ),
+            SupplierEvidenceRecord(
+                evidence_id="EVID-TEST-356-DOM",
+                supplier_id="CRUST_356",
+                category=EvidenceCategory.COMPANY_WEBSITE_DOMAIN,
+                claim="Corporate web domain: arrowgreentech.com",
+                status=EvidenceStatus.SELF_REPORTED,
+                source_name="Crustdata Company Search",
+                reviewer_notes="Domain matches company name.",
+            ),
+        ]
+        for ev in test_evidence:
+            repo.create_evidence(ev)
+
         copilot = AISourcingCopilot(repository=repo, client=None)
 
         resp = copilot.chat_sourcing_assistant(
@@ -326,7 +425,7 @@ class TestLiveDatabaseCopilotIntegration:
         )
         msg = resp.assistant_message
 
-        # Assert correct attribution backed by database records
+        # Assert correct attribution backed by isolated database records
         assert "Biopac India Corporation Ltd" in msg and "ecpulse.com" in msg
         assert "VIKAAS PAPER FLEXO PACKAGING LIMITED" in msg and "kediainfo.com" in msg
         assert "Cosmo Films" in msg and "cosmofilms.com" in msg
@@ -335,3 +434,11 @@ class TestLiveDatabaseCopilotIntegration:
         # Assert strict non-misattribution
         assert "Cosmo Films: Registered directory domain is `ecpulse.com`" not in msg
         assert "Arrow Greentech Ltd.: Registered directory domain is `kediainfo.com`" not in msg
+
+        # Assert database isolation: evidence source reflects temp db, never production db
+        assert os.path.basename(temp_db_path) in resp.evidence_sources[0]
+        assert "vendoriq.sqlite" not in resp.evidence_sources[0]
+
+    def test_copilot_domain_attribution_accuracy_live_database(self, temp_db_path):
+        """Backward-compatible alias pointing directly to the isolated database implementation."""
+        self.test_copilot_domain_attribution_accuracy_isolated_database(temp_db_path)
