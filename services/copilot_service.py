@@ -445,10 +445,10 @@ class AISourcingCopilot:
             else:
                 lines.append("- No matching sustainability-related description was found in the available supplier records.")
             lines.append("No sustainability certification should be treated as verified unless a current third-party certificate is recorded in the evidence register.")
-            return "\\n".join(lines)
+            return "\n".join(lines)
 
         if any(term in q_lower for term in ("risk", "mismatch", "alert", "missing", "gap", "evidence", "strength")):
-            lines.append("**Data gaps and due-diligence checks**")
+            lines.append("**Data Quality & Due Diligence Alerts**")
             for supplier in suppliers:
                 gaps = []
                 if not supplier.headquarters_city:
@@ -461,7 +461,7 @@ class AISourcingCopilot:
                     lines.append(f"- **{supplier.company_name}:** " + "; ".join(gaps))
             lines.append("A missing field means the information is not available in VendorIQ; it does not prove the supplier lacks the capability or certification.")
             lines.append("Supplier descriptions and directory attributes are not independent verification. Confirm legal identity, facility details, capacity and technical claims before proceeding.")
-            return "\\n".join(lines)
+            return "\n".join(lines)
 
         lines.append("**Top candidates by deterministic evaluation score**")
         if ranked_suppliers:
@@ -476,4 +476,4 @@ class AISourcingCopilot:
             lines.append("- No evaluation scores are available for this brief yet.")
         lines.append("")
         lines.append("Scores are deterministic screening assessments, not supplier certifications, verified production capacity, or award decisions.")
-        return "\\n".join(lines)
+        return "\n".join(lines)
