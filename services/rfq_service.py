@@ -58,6 +58,10 @@ class RFQService:
         contact_email: Optional[str] = None,
         deadline_days: int = 21,
         target_unit_price: Optional[float] = None,
+        currency: Optional[str] = None,
+        product_description: Optional[str] = None,
+        barrier_film_requirements: Optional[str] = None,
+        packaging_requirements: Optional[str] = None,
         min_order_quantity: Optional[int] = None,
         production_lead_time_weeks: Optional[int] = None,
         payment_terms: Optional[str] = None,
@@ -76,8 +80,6 @@ class RFQService:
         buyer_org = buyer_organization or brief.buyer_organization
         if not buyer_org or len(buyer_org.strip()) < 2:
             raise DataValidationError("Buyer organization must be supplied before creating an RFQ.")
-        if not expected_quantity or not expected_quantity.strip():
-            raise DataValidationError("Buyer-approved expected quantity and unit are required before creating an RFQ.")
         ref_code = f"RFQ-{brief.brief_id[:8].upper()}-{supplier.supplier_id[:8].upper()}"
 
         # Fetch supplier evidence records to identify missing proof and domain flags
@@ -181,11 +183,11 @@ class RFQService:
 
         product_reqs = RFQProductRequirements(
             category=brief.criteria.target_industries[0] if brief.criteria.target_industries else "Flexible Packaging",
-            description=brief.description,
+            description=product_description or brief.description or "Not specified",
             technical_specifications=tech_specs,
-            barrier_film_requirements=None,
-            expected_quantity=expected_quantity.strip(),
-            packaging_requirements=None,
+            barrier_film_requirements=barrier_film_requirements or None,
+            expected_quantity=expected_quantity.strip() if expected_quantity else None,
+            packaging_requirements=packaging_requirements or None,
         )
 
         commercial_reqs = RFQCommercialRequirements(
