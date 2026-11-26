@@ -191,7 +191,7 @@ class RFQDocumentGenerator:
         # Section 3: Product Scope & Technical Requirements
         self._docx_add_section_header(doc, "3. Scope of Supply & Technical Requirements")
         doc.add_paragraph(f"Category: {rfq.product_requirements.category}").runs[0].font.bold = True
-        doc.add_paragraph(f"Requirement Description: {rfq.product_requirements.description or "Not specified"}")
+        doc.add_paragraph(f"Requirement Description: {rfq.product_requirements.description or 'Not specified'}")
         doc.add_paragraph(f"Target Delivery Quantity: {rfq.product_requirements.expected_quantity or "Not specified"}").runs[0].font.bold = True
 
         if rfq.product_requirements.barrier_film_requirements:
@@ -456,7 +456,7 @@ class RFQDocumentGenerator:
         b_data = [
             [Paragraph("<b>Buyer Entity</b>", bold_body), Paragraph(rfq.buyer_info.buyer_organization, body_style)],
             [Paragraph("<b>Procurement Lead</b>", bold_body), Paragraph(rfq.buyer_info.contact_person or "Procurement Lead", body_style)],
-            [Paragraph("<b>Official Contact Email</b>", bold_body), Paragraph(rfq.buyer_info.contact_email or "procurement@vendoriq.internal", body_style)],
+            [Paragraph("<b>Official Contact Email</b>", bold_body), Paragraph(rfq.buyer_info.contact_email or "Not provided", body_style)],
         ]
         b_table = Table(b_data, colWidths=[160, 370])
         b_table.setStyle(
