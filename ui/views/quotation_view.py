@@ -47,6 +47,7 @@ from ui.components import (
     render_view_header,
     render_score_legend,
     render_evidence_legend,
+    render_next_step_guidance,
 )
 from utils.file_storage import MAX_FILE_SIZE_BYTES, validate_quotation_file
 from services.quotation_comparison import TechnicalComplianceEvaluator
@@ -122,11 +123,17 @@ def render_quotation_view(
     k_col5.metric("Award Accepted", sum(1 for q in latest_quotes if q.status == QuotationStatus.ACCEPTED))
     k_col6.metric("Rejected", sum(1 for q in latest_quotes if q.status == QuotationStatus.REJECTED))
 
+    col_leg1, col_leg2 = st.columns(2)
+    with col_leg1:
+        render_score_legend()
+    with col_leg2:
+        render_evidence_legend()
+
     st.markdown("---")
 
     # Five Functional Tabs
     tab_ingest, tab_review, tab_compare, tab_recs, tab_approval = st.tabs([
-        "📤 1. Ingestion & Ingestion Preview",
+        "📤 1. Ingestion & Extraction",
         "🔍 2. Review & Human Confirmation",
         "⚖️ 3. Side-by-Side Comparison",
         "🎯 4. Deterministic Recommendations",
@@ -872,3 +879,9 @@ def render_quotation_view(
                         }
                         for a in candidate_audit
                     ]), width="stretch")
+
+    st.markdown("---")
+    render_next_step_guidance(
+        next_view_name="📊 Executive Overview",
+        guidance_text="Review the finalized procurement portfolio, award approvals, and enterprise audit records in the Executive Overview.",
+    )

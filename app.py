@@ -154,47 +154,47 @@ def main():
 
     # 6. Render Selected View
     if selected_nav == "📊 Executive Overview":
-        render_executive_view(
+        ui.views.executive_view.render_executive_view(
             brief=current_brief,
             suppliers=suppliers,
             evaluations=evaluations,
             audit_report=audit_report,
         )
     elif selected_nav == "🤖 AI Sourcing Copilot":
-        render_copilot_view(
+        ui.views.copilot_view.render_copilot_view(
             service=service,
             current_brief=current_brief,
             suppliers=suppliers,
             evaluations=evaluations,
         )
     elif selected_nav == "📋 Sourcing Brief":
-        render_brief_view(service=service, current_brief=current_brief)
+        ui.views.brief_view.render_brief_view(service=service, current_brief=current_brief)
     elif selected_nav == "🔍 Supplier Discovery":
-        render_discovery_view(
+        ui.views.discovery_view.render_discovery_view(
             suppliers=suppliers,
             brief=current_brief,
             evaluations=evaluations,
             service=service,
         )
     elif selected_nav == "🏆 Supplier Evaluation":
-        render_evaluation_view(evaluations=evaluations)
+        ui.views.evaluation_view.render_evaluation_view(evaluations=evaluations)
     elif selected_nav == "⚖️ Supplier Comparison":
-        render_comparison_view(
+        ui.views.comparison_view.render_comparison_view(
             suppliers=suppliers,
             evaluations=evaluations,
             audit_report=audit_report,
         )
     elif selected_nav == "🛡️ Evidence & Trust":
-        render_evidence_view(suppliers=suppliers, evaluations=evaluations, service=service)
+        ui.views.evidence_view.render_evidence_view(suppliers=suppliers, evaluations=evaluations, service=service)
     elif selected_nav == "📝 RFQ Preparation":
-        render_rfq_view(
+        ui.views.rfq_view.render_rfq_view(
             service=service,
             brief=current_brief,
             suppliers=suppliers,
             evaluations=evaluations,
         )
     elif selected_nav == "💰 Quotations & Analysis":
-        render_quotation_view(
+        ui.views.quotation_view.render_quotation_view(
             service=service,
             brief=current_brief,
             suppliers=suppliers,

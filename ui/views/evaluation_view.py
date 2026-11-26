@@ -77,19 +77,19 @@ def render_evaluation_view(evaluations: List[SupplierScore]):
             col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
             with col_f1:
                 f_ind = f[ScoringDimension.INDUSTRY_RELEVANCE]
-                st.metric("Industry (35%)", f"{f_ind.score:.0f}", f"Weighted: {f_ind.weighted_score:.1f}")
+                st.metric("Industry (35%)", f"{f_ind.score:.0f}", f"{f_ind.weighted_score:.1f} pts", delta_color="off")
             with col_f2:
                 f_geo = f[ScoringDimension.GEOGRAPHIC_FIT]
-                st.metric("Geography (25%)", f"{f_geo.score:.0f}", f"Weighted: {f_geo.weighted_score:.1f}")
+                st.metric("Geography (25%)", f"{f_geo.score:.0f}", f"{f_geo.weighted_score:.1f} pts", delta_color="off")
             with col_f3:
                 f_size = f[ScoringDimension.COMPANY_SIZE_FIT]
-                st.metric("Size Fit (20%)", f"{f_size.score:.0f}", f"Weighted: {f_size.weighted_score:.1f}")
+                st.metric("Size Fit (20%)", f"{f_size.score:.0f}", f"{f_size.weighted_score:.1f} pts", delta_color="off")
             with col_f4:
                 f_sig = f[ScoringDimension.BUSINESS_SIGNALS]
-                st.metric("Signals (10%)", f"{f_sig.score:.0f}", f"Weighted: {f_sig.weighted_score:.1f}")
+                st.metric("Signals (10%)", f"{f_sig.score:.0f}", f"{f_sig.weighted_score:.1f} pts", delta_color="off")
             with col_f5:
                 f_comp = f[ScoringDimension.DATA_COMPLETENESS]
-                st.metric("Complete (10%)", f"{f_comp.score:.0f}", f"Weighted: {f_comp.weighted_score:.1f}")
+                st.metric("Complete (10%)", f"{f_comp.score:.0f}", f"{f_comp.weighted_score:.1f} pts", delta_color="off")
 
             # Factor Reasoning Expander
             with st.expander(f"🔍 View Detailed Factor Breakdown & Reasoning for {sc.company_name}"):

@@ -91,7 +91,7 @@ WORKFLOW_STAGES = [
     ("brief", "1. Sourcing Brief", "Define requirements & weights"),
     ("discovery", "2. Discovery", "Market search & shortlist"),
     ("evaluation", "3. Evaluation", "Multi-factor scoring"),
-    ("evidence", "4. Evidence & Trust", "Verify claims & audits"),
+    ("evidence", "4. Evidence Review", "Verify claims & audits"),
     ("rfq", "5. RFQ Prep", "Draft & approve packages"),
     ("quotation", "6. Quotations & Analysis", "Ingest, compare & award"),
 ]
@@ -135,12 +135,12 @@ def render_workflow_stepper(current_stage_key: str):
         active_marker = "box-shadow: 0 1px 3px rgba(30,58,138,0.15);" if idx == current_idx else ""
 
         item_html = (
-            f'<div style="flex: 1; min-width: 130px; background-color: {bg_col}; '
-            f'border: 1.5px solid {border_col}; border-radius: 6px; padding: 6px 10px; margin: 2px; {active_marker}">'
+            f'<div style="flex: 1 1 0px; min-width: 0; background-color: {bg_col}; '
+            f'border: 1.5px solid {border_col}; border-radius: 6px; padding: 4px 6px; margin: 1px; {active_marker}">'
             f'<div style="font-size: 11px; font-weight: {font_weight}; color: {text_col}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">'
             f'{badge}{label}'
             f'</div>'
-            f'<div style="font-size: 10px; color: #64748B; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">'
+            f'<div style="font-size: 9px; color: #64748B; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">'
             f'{desc}'
             f'</div>'
             f'</div>'
@@ -149,7 +149,7 @@ def render_workflow_stepper(current_stage_key: str):
 
     stepper_html = (
         '<div style="margin-bottom: 16px; padding: 4px; background: #FFFFFF; border-radius: 8px;">'
-        '<div style="display: flex; flex-wrap: wrap; gap: 4px; justify-content: space-between; align-items: stretch;">'
+        '<div style="display: flex; flex-direction: row; flex-wrap: nowrap; gap: 4px; justify-content: space-between; align-items: stretch; width: 100%;">'
         + "".join(items_html)
         + '</div></div>'
     )
