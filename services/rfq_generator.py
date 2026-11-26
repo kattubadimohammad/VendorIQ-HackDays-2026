@@ -153,8 +153,8 @@ class RFQDocumentGenerator:
         b_table = doc.add_table(rows=3, cols=2)
         b_data = [
             ("Buyer Entity:", rfq.buyer_info.buyer_organization),
-            ("Procurement Contact:", rfq.buyer_info.contact_person or "Procurement Lead"),
-            ("Official Inquiries / Bids Inbox:", rfq.buyer_info.contact_email or "procurement@vendoriq.internal"),
+            ("Procurement Contact:", rfq.buyer_info.contact_person or "Not provided"),
+            ("Official Inquiries / Bids Inbox:", rfq.buyer_info.contact_email or "Not provided"),
         ]
         for row_idx, (k, v) in enumerate(b_data):
             c_k = b_table.cell(row_idx, 0)
@@ -192,7 +192,7 @@ class RFQDocumentGenerator:
         self._docx_add_section_header(doc, "3. Scope of Supply & Technical Requirements")
         doc.add_paragraph(f"Category: {rfq.product_requirements.category}").runs[0].font.bold = True
         doc.add_paragraph(f"Requirement Description: {rfq.product_requirements.description}")
-        doc.add_paragraph(f"Target Delivery Quantity: {rfq.product_requirements.expected_quantity}").runs[0].font.bold = True
+        doc.add_paragraph(f"Target Delivery Quantity: {rfq.product_requirements.expected_quantity or "Not specified"}").runs[0].font.bold = True
 
         if rfq.product_requirements.barrier_film_requirements:
             p_bar = doc.add_paragraph()
@@ -215,13 +215,13 @@ class RFQDocumentGenerator:
         self._docx_add_section_header(doc, "4. Commercial Requirements & Pricing Terms")
         c_table = doc.add_table(rows=7, cols=2)
         c_data = [
-            ("Quotation Currency:", rfq.commercial_requirements.currency),
-            ("Target Unit Price:", f"{rfq.commercial_requirements.currency} {rfq.commercial_requirements.target_unit_price:,.2f}" if rfq.commercial_requirements.target_unit_price else "Open quotation requested"),
+            ("Quotation Currency:", rfq.commercial_requirements.currency or "Supplier to quote in a stated currency"),
+            ("Target Unit Price:", f"{rfq.commercial_requirements.currency or ''} {rfq.commercial_requirements.target_unit_price:,.2f}" if rfq.commercial_requirements.target_unit_price else "Open quotation requested"),
             ("Minimum Order Quantity (MOQ):", f"{rfq.commercial_requirements.min_order_quantity:,} units" if rfq.commercial_requirements.min_order_quantity else "Supplier to indicate standard MOQ"),
             ("Production Lead Time:", f"Within {rfq.commercial_requirements.production_lead_time_weeks} weeks" if rfq.commercial_requirements.production_lead_time_weeks else "Supplier to state production lead time"),
-            ("Payment Terms Requested:", rfq.commercial_requirements.payment_terms),
-            ("Incoterms (Delivery Baseline):", rfq.commercial_requirements.incoterms),
-            ("Fulfillment Delivery Location:", rfq.commercial_requirements.delivery_location),
+            ("Payment Terms Requested:", rfq.commercial_requirements.payment_terms or "Supplier to propose"),
+            ("Incoterms (Delivery Baseline):", rfq.commercial_requirements.incoterms or "Supplier to propose"),
+            ("Fulfillment Delivery Location:", rfq.commercial_requirements.delivery_location or "Not specified"),
         ]
         for row_idx, (k, v) in enumerate(c_data):
             c_k = c_table.cell(row_idx, 0)
@@ -278,7 +278,7 @@ class RFQDocumentGenerator:
         )
         doc.add_paragraph(
             f"2. Quotation Validity: All offered commercial prices must remain unconditionally valid for a minimum "
-            f"of {rfq.commercial_requirements.quotation_validity_days} calendar days from submission deadline."
+            f"of {rfq.commercial_requirements.quotation_validity_days} calendar days from submission deadline." if rfq.commercial_requirements.quotation_validity_days else "as stated in the supplier quotation."
         )
         doc.add_paragraph(
             "3. Confidentiality & Non-Disclosure: All specifications and volume estimates in this RFQ "
