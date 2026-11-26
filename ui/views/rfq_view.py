@@ -326,8 +326,8 @@ def render_rfq_view(
                     if rfq.status == RFQStatus.DRAFT:
                         st.markdown("##### 🚀 Action: Submit for Formal Review")
                         with st.form(f"submit_form_{rfq.rfq_id}"):
-                            sub_name = st.text_input("Your Name / Procurement Role", value="Lead Buyer", key=f"sub_name_{rfq.rfq_id}")
-                            sub_notes = st.text_input("Submission Notes", value="Completed commercial terms review. Submitting for formal approval.", key=f"sub_notes_{rfq.rfq_id}")
+                            sub_name = st.text_input("Your Name / Procurement Role", value="", placeholder="Enter your name or role", key=f"sub_name_{rfq.rfq_id}")
+                            sub_notes = st.text_input("Submission Notes", value="", placeholder="Enter submission notes", key=f"sub_notes_{rfq.rfq_id}")
                             if st.form_submit_button("Submit for Approval"):
                                 service.submit_rfq_for_approval(rfq.rfq_id, sub_name, sub_notes)
                                 st.success("RFQ submitted for formal approval!")
@@ -338,8 +338,8 @@ def render_rfq_view(
                         col_app, col_rej = st.columns(2)
                         with col_app:
                             with st.form(f"approve_form_{rfq.rfq_id}"):
-                                reviewer_name = st.text_input("Reviewer Name", value="Procurement Director", key=f"rev_name_{rfq.rfq_id}")
-                                app_notes = st.text_area("Approval Authorization Notes", value="Verified technical specifications, supplier evidence, and commercial terms. Approved for distribution.", key=f"app_notes_{rfq.rfq_id}")
+                                reviewer_name = st.text_input("Reviewer Name", value="", placeholder="Enter reviewer name", key=f"rev_name_{rfq.rfq_id}")
+                                app_notes = st.text_area("Approval Authorization Notes", value="", placeholder="Record the actual review and authorization basis", key=f"app_notes_{rfq.rfq_id}")
                                 if st.form_submit_button("✅ Approve RFQ & Generate Documents"):
                                     try:
                                         service.approve_rfq(rfq.rfq_id, reviewer_name, app_notes)
@@ -350,8 +350,8 @@ def render_rfq_view(
 
                         with col_rej:
                             with st.form(f"reject_form_{rfq.rfq_id}"):
-                                rej_name = st.text_input("Reviewer Name", value="Procurement Director", key=f"rej_name_{rfq.rfq_id}")
-                                rej_notes = st.text_area("Rejection Feedback / Reasons", value="Please revise minimum order quantity and clarify moisture barrier specs.", key=f"rej_notes_{rfq.rfq_id}")
+                                rej_name = st.text_input("Reviewer Name", value="", placeholder="Enter reviewer name", key=f"rej_name_{rfq.rfq_id}")
+                                rej_notes = st.text_area("Rejection Feedback / Reasons", value="", placeholder="Enter actual rejection feedback", key=f"rej_notes_{rfq.rfq_id}")
                                 if st.form_submit_button("❌ Reject RFQ (Request Revisions)"):
                                     try:
                                         service.reject_rfq(rfq.rfq_id, rej_name, rej_notes)
@@ -363,8 +363,8 @@ def render_rfq_view(
                     elif rfq.status == RFQStatus.REJECTED:
                         st.markdown("##### 🔄 Action: Revise & Return to Draft")
                         with st.form(f"revise_form_{rfq.rfq_id}"):
-                            rev_user = st.text_input("Your Name", value="Lead Buyer", key=f"rev_user_{rfq.rfq_id}")
-                            rev_comments = st.text_input("Revision Notes", value="Incorporated feedback. Moving back to DRAFT to modify specifications.", key=f"rev_comm_{rfq.rfq_id}")
+                            rev_user = st.text_input("Your Name", value="", placeholder="Enter your name", key=f"rev_user_{rfq.rfq_id}")
+                            rev_comments = st.text_input("Revision Notes", value="", placeholder="Enter actual revision notes", key=f"rev_comm_{rfq.rfq_id}")
                             if st.form_submit_button("Revert to DRAFT for Editing"):
                                 service.revise_rfq(rfq.rfq_id, rev_user, rev_comments)
                                 st.info("RFQ reverted to DRAFT. You may now update its details.")
@@ -374,10 +374,10 @@ def render_rfq_view(
                         st.markdown("##### 📤 Action: Confirm Manual External Dispatch")
                         st.info("Remember: VendorIQ **never** transmits automated emails. Once you dispatch the RFQ via your company's corporate email or procurement portal, log the confirmation below.")
                         with st.form(f"dispatch_form_{rfq.rfq_id}"):
-                            disp_user = st.text_input("Dispatcher Name", value="Procurement Buyer", key=f"disp_user_{rfq.rfq_id}")
+                            disp_user = st.text_input("Dispatcher Name", value="", placeholder="Enter dispatcher name", key=f"disp_user_{rfq.rfq_id}")
                             disp_notes = st.text_area(
                                 "Transmission Confirmation Notes",
-                                value=f"Transmitted signed RFQ PDF to {rfq.supplier.company_name} official corporate contact via company procurement portal.",
+                                value="",
                                 key=f"disp_notes_{rfq.rfq_id}",
                             )
                             if st.form_submit_button("Confirm Manual Dispatch (Mark as SENT)"):
@@ -391,10 +391,10 @@ def render_rfq_view(
                     elif rfq.status == RFQStatus.SENT:
                         st.markdown("##### 📥 Action: Record Supplier Response")
                         with st.form(f"response_form_{rfq.rfq_id}"):
-                            resp_user = st.text_input("Receiver Name", value="Procurement Buyer", key=f"resp_user_{rfq.rfq_id}")
+                            resp_user = st.text_input("Receiver Name", value="", placeholder="Enter receiver name", key=f"resp_user_{rfq.rfq_id}")
                             resp_summary = st.text_area(
                                 "Supplier Response Summary",
-                                value="Supplier submitted formal quote proposal ($4.20/unit, 4 weeks lead time) and attached ASTM test reports.",
+                                value="", placeholder="Summarize the response actually received",
                                 key=f"resp_summary_{rfq.rfq_id}",
                             )
                             if st.form_submit_button("Record Response Received"):
@@ -408,8 +408,8 @@ def render_rfq_view(
                     elif rfq.status in (RFQStatus.RESPONSE_RECEIVED, RFQStatus.CLOSED):
                         if rfq.status == RFQStatus.RESPONSE_RECEIVED:
                             with st.form(f"close_form_{rfq.rfq_id}"):
-                                close_user = st.text_input("Closing Official", value="Procurement Director", key=f"close_user_{rfq.rfq_id}")
-                                close_reason = st.text_input("Resolution Summary", value="Vendor contract finalized and awarded.", key=f"close_reason_{rfq.rfq_id}")
+                                close_user = st.text_input("Closing Official", value="", placeholder="Enter closing official", key=f"close_user_{rfq.rfq_id}")
+                                close_reason = st.text_input("Resolution Summary", value="", placeholder="Enter actual resolution summary", key=f"close_reason_{rfq.rfq_id}")
                                 if st.form_submit_button("Close RFQ"):
                                     service.close_supplier_rfq(rfq.rfq_id, close_user, close_reason)
                                     st.success("RFQ successfully marked as CLOSED.")
