@@ -609,13 +609,16 @@ class RFQDocumentGenerator:
                 body_style,
             )
         )
-        story.append(
-            Paragraph(
-                f"• <b>Price Validity:</b> Quotations must remain valid for a minimum of "
-                f"<b>{rfq.commercial_requirements.quotation_validity_days} calendar days</b>.",
-                body_style,
+        if rfq.commercial_requirements.quotation_validity_days:
+            story.append(
+                Paragraph(
+                    f"• <b>Price Validity:</b> Quotations must remain valid for a minimum of "
+                    f"<b>{rfq.commercial_requirements.quotation_validity_days} calendar days</b>.",
+                    body_style,
+                )
             )
-        )
+        else:
+            story.append(Paragraph("• <b>Price Validity:</b> To be proposed by the supplier.", body_style))
         story.append(
             Paragraph(
                 "• <b>Confidentiality:</b> Information in this RFQ is confidential to the buyer entity and "
