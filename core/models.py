@@ -842,7 +842,7 @@ class RFQProductRequirements(BaseModel):
     Detailed technical product requirements specified by the buyer.
     """
     category: str = Field(..., min_length=2)
-    description: str = Field(..., min_length=5)
+    description: Optional[str] = Field(default=None)
     technical_specifications: List[str] = Field(default_factory=list)
     barrier_film_requirements: Optional[str] = None
     expected_quantity: Optional[str] = Field(default=None, description="Buyer-approved target volume and unit")
