@@ -416,38 +416,64 @@ class AISourcingCopilot:
         suppliers: List[SupplierProfile],
         evaluations: List[SupplierScore],
     ) -> str:
-        """Deterministic response synthesizer for offline mode."""
+        """Build an offline answer using only the supplied supplier records and scores."""
         q_lower = query.lower()
+        supplier_map = {s.supplier_id: s for s in suppliers}
+        ranked = sorted(evaluations, key=lambda item: item.total_score, reverse=True)
+        ranked_suppliers = [
+            (supplier_map[e.supplier_id], e)
+            for e in ranked
+            if e.supplier_id in supplier_map
+        ]
+        lines = [
+            f"**Active brief:** {brief.title}",
+            f"**Supplier records available:** {len(suppliers)}",
+            "",
+        ]
 
-        if "recommend" in q_lower or "best" in q_lower or "top" in q_lower:
-            top_3 = evaluations[:3] if evaluations else []
-            names = [f"**#{i} {e.company_name}** ({e.total_score:.2f}/100)" for i, e in enumerate(top_3, 1)]
-            return (
-                f"Based on the active brief criteria (**{brief.title}**), the top deterministically ranked packaging candidates in India are:\n\n"
-                + "\n".join([f"- {n}" for n in names]) +
-                "\n\n**Procurement Notice**: These candidates were evaluated against basic Crustdata directory overviews. "
-                "No supplier is certified, verified, or approved without independent technical inspection."
-            )
+        if any(term in q_lower for term in ("sustain", "green", "bio", "compost", "recycl")):
+            keywords = ("sustain", "green", "bio", "compost", "recycl", "water-soluble")
+            matches = [
+                s for s in suppliers
+                if any(word in (s.description or "").lower() for word in keywords)
+            ]
+            lines.append("**Supplier descriptions mentioning sustainability-related terms**")
+            if matches:
+                for supplier in matches:
+                    snippet = supplier.description or "No description recorded."
+                    lines.append(f"- **{supplier.company_name}:** {snippet} (directory description; not independently verified)")
+            else:
+                lines.append("- No matching sustainability-related description was found in the available supplier records.")
+            lines.append("No sustainability certification should be treated as verified unless a current third-party certificate is recorded in the evidence register.")
+            return "\\n".join(lines)
 
-        if "bio" in q_lower or "sustainable" in q_lower or "green" in q_lower:
-            arrow = next((s for s in suppliers if "arrow" in s.company_name.lower()), None)
-            return (
-                f"For sustainable packaging requirements, **Arrow Greentech Ltd.** (`arrowgreentech.com`, Ranked #2) "
-                "specifically mentions compostable and water-soluble films in its self-reported overview. "
-                "However, third-party biodegradability certifications (e.g. ASTM D6400 / EN 13432) are unverified in this basic directory tier and must be audited before RFP."
-            )
+        if any(term in q_lower for term in ("risk", "mismatch", "alert", "missing", "gap", "evidence", "strength")):
+            lines.append("**Data gaps and due-diligence checks**")
+            for supplier in suppliers:
+                gaps = []
+                if not supplier.headquarters_city:
+                    gaps.append("headquarters city not recorded")
+                if not supplier.certifications:
+                    gaps.append("no certification listed in the supplier profile")
+                if not supplier.employee_range:
+                    gaps.append("employee range not recorded")
+                if gaps:
+                    lines.append(f"- **{supplier.company_name}:** " + "; ".join(gaps))
+            lines.append("A missing field means the information is not available in VendorIQ; it does not prove the supplier lacks the capability or certification.")
+            lines.append("Supplier descriptions and directory attributes are not independent verification. Confirm legal identity, facility details, capacity and technical claims before proceeding.")
+            return "\\n".join(lines)
 
-        if "risk" in q_lower or "mismatch" in q_lower or "alert" in q_lower:
-            return (
-                "**Data Quality & Due Diligence Alerts**:\n\n"
-                "1. **Biopac India Corporation Ltd** (`ecpulse.com`): Primary domain stem differs from legal company name. Requires manual verification of parent holding portal.\n"
-                "2. **VIKAAS PAPER FLEXO PACKAGING LIMITED** (`kediainfo.com`): Operates under Kedia Group domain. Requires manual corporate verification.\n"
-                "3. **Headquarters Addresses**: City-level addresses are unpopulated in the basic discovery index across all 18 candidates; on-site facility audits are required."
-            )
-
-        return (
-            f"I have reviewed your query against {len(suppliers)} supplier records in the active VendorIQ database under **{brief.title}**.\n\n"
-            "All candidate evaluation scores are calculated deterministically across Industry Relevance (35%), Geographic Fit (25%), "
-            "Company Size Fit (20%), Business Signals (10%), and Data Completeness (10%).\n\n"
-            "Would you like me to extract structured brief criteria from a new procurement specification or compare specific short-listed candidates?"
-        )
+        lines.append("**Top candidates by deterministic evaluation score**")
+        if ranked_suppliers:
+            for rank, (supplier, evaluation) in enumerate(ranked_suppliers[:3], 1):
+                description = supplier.description or "No supplier description recorded."
+                lines.append(
+                    f"- **#{rank} {supplier.company_name} — {evaluation.total_score:.1f}/100.** "
+                    f"Reported employee range: {supplier.employee_range or 'not recorded'}. "
+                    f"Directory description: {description[:240]}"
+                )
+        else:
+            lines.append("- No evaluation scores are available for this brief yet.")
+        lines.append("")
+        lines.append("Scores are deterministic screening assessments, not supplier certifications, verified production capacity, or award decisions.")
+        return "\\n".join(lines)
