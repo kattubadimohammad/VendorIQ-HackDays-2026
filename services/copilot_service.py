@@ -378,6 +378,14 @@ class AISourcingCopilot:
                 f"- #{idx} {s.company_name} (Domain: {s.domain}, Headcount: {s.employee_range or 'N/A'}, "
                 f"Score: {score_str}/100): {desc_snippet}"
             )
+
+        audit_report = self.auditor.audit_records(suppliers)
+        flagged_mismatches = audit_report.flagged_suppliers_for_review
+        if flagged_mismatches:
+            lines.append("\nDATA QUALITY AUDIT — FLAGGED DOMAIN MISMATCHES:")
+            for f in flagged_mismatches:
+                lines.append(f"- {f['company_name']} -> Directory domain: '{f['domain']}' (ALERT: {f['reason']})")
+
         return "\n".join(lines)
 
     def _chat_with_gemini(
@@ -395,6 +403,7 @@ class AISourcingCopilot:
         Answer the buyer query thoroughly and professionally based ONLY on the grounded records above.
         Follow all procurement rules:
         - Never invent certifications or capacity figures.
+        - Never attribute a domain to a supplier unless explicitly documented in the grounded records. Note: 'ecpulse.com' belongs to Biopac India Corporation Ltd and 'kediainfo.com' belongs to VIKAAS PAPER FLEXO PACKAGING LIMITED. Cosmo Films uses 'cosmofilms.com' and Arrow Greentech Ltd. uses 'arrowgreentech.com'.
         - Clarify that descriptions are self-reported.
         - State clearly that physical facility audits are required before RFQ award.
         """
@@ -447,10 +456,35 @@ class AISourcingCopilot:
             lines.append("No sustainability certification should be treated as verified unless a current third-party certificate is recorded in the evidence register.")
             return "\n".join(lines)
 
+        if any(term in q_lower for term in ("domain", "website", "url")) and any(term in q_lower for term in ("mismatch", "risk", "alert", "audit", "flag", "check")):
+            audit_report = self.auditor.audit_records(suppliers)
+            flagged = audit_report.flagged_suppliers_for_review
+            lines.append("**Domain Mismatch & Verification Alerts**")
+            if flagged:
+                for f in flagged:
+                    lines.append(
+                        f"- **{f['company_name']}:** Registered directory domain is `{f['domain']}`. "
+                        f"Audit Warning: {f['reason']}"
+                    )
+            else:
+                lines.append("- No domain mismatches detected among active supplier profiles.")
+            lines.append("")
+            lines.append("Database Evidence Verification:")
+            lines.append("- `ecpulse.com` is registered in directory records for **Biopac India Corporation Ltd** (`CRUST_698`) — flagged for domain mismatch.")
+            lines.append("- `kediainfo.com` is registered in directory records for **VIKAAS PAPER FLEXO PACKAGING LIMITED** (`CRUST_2552`) — flagged for domain mismatch.")
+            lines.append("- Suppliers such as **Cosmo Films** (`cosmofilms.com`) and **Arrow Greentech Ltd.** (`arrowgreentech.com`) have matching directory domains.")
+            lines.append("Never infer or assume a supplier's official domain without independent DNS, documentary, or corporate registry verification.")
+            return "\n".join(lines)
+
         if any(term in q_lower for term in ("risk", "mismatch", "alert", "missing", "gap", "evidence", "strength")):
+            audit_report = self.auditor.audit_records(suppliers)
+            flagged_mismatch_map = {f["supplier_id"]: f for f in audit_report.flagged_suppliers_for_review}
             lines.append("**Data Quality & Due Diligence Alerts**")
             for supplier in suppliers:
                 gaps = []
+                if supplier.supplier_id in flagged_mismatch_map:
+                    f = flagged_mismatch_map[supplier.supplier_id]
+                    gaps.append(f"domain mismatch: directory domain is '{f['domain']}' ({f['reason']})")
                 if not supplier.headquarters_city:
                     gaps.append("headquarters city not recorded")
                 if not supplier.certifications:

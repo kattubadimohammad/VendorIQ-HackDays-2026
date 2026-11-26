@@ -303,3 +303,35 @@ class TestLiveDatabaseCopilotIntegration:
         assert recs[1].total_score == 79.00
         assert recs[2].company_name == "Biopac India Corporation Ltd"
         assert recs[2].total_score == 76.50
+
+    def test_copilot_domain_attribution_accuracy_live_database(self):
+        """
+        Verify that Copilot domain mismatch and risk answers accurately attribute domains:
+        - ecpulse.com belongs to Biopac India Corporation Ltd (CRUST_698)
+        - kediainfo.com belongs to VIKAAS PAPER FLEXO PACKAGING LIMITED (CRUST_2552)
+        - cosmofilms.com belongs to Cosmo Films (no mismatch)
+        - arrowgreentech.com belongs to Arrow Greentech Ltd. (no mismatch)
+        - Never incorrectly attributes ecpulse.com or kediainfo.com to Cosmo Films or Arrow Greentech.
+        """
+        if not os.path.exists("vendoriq.sqlite"):
+            pytest.skip("vendoriq.sqlite not found.")
+
+        repo = VendorIQRepository(db_path="vendoriq.sqlite")
+        brief = repo.list_briefs()[0]
+        copilot = AISourcingCopilot(repository=repo, client=None)
+
+        resp = copilot.chat_sourcing_assistant(
+            message="What are the domain mismatch risks and website alerts?",
+            current_brief=brief,
+        )
+        msg = resp.assistant_message
+
+        # Assert correct attribution backed by database records
+        assert "Biopac India Corporation Ltd" in msg and "ecpulse.com" in msg
+        assert "VIKAAS PAPER FLEXO PACKAGING LIMITED" in msg and "kediainfo.com" in msg
+        assert "Cosmo Films" in msg and "cosmofilms.com" in msg
+        assert "Arrow Greentech Ltd." in msg and "arrowgreentech.com" in msg
+
+        # Assert strict non-misattribution
+        assert "Cosmo Films: Registered directory domain is `ecpulse.com`" not in msg
+        assert "Arrow Greentech Ltd.: Registered directory domain is `kediainfo.com`" not in msg

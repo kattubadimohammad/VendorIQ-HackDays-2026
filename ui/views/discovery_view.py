@@ -281,7 +281,14 @@ def render_discovery_view(
                         )
 
                     # Match explanation
-                    st.info(f"**Match Analysis**: {rec.match_explanation}")
+                    display_explanation = rec.match_explanation
+                    if uncertain_reasons and not confirmed_failures and "Fails " in display_explanation:
+                        display_explanation = re.sub(
+                            r"Fails \d+ hard requirement\(s\)\.",
+                            f"Eligibility unconfirmed ({len(uncertain_reasons)} requirement(s) need buyer review).",
+                            display_explanation,
+                        )
+                    st.info(f"**Match Analysis**: {display_explanation}")
 
                     # Detailed evidence & risks in 3 columns
                     col_ev1, col_ev2, col_ev3 = st.columns(3)

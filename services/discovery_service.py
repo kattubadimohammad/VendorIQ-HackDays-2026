@@ -316,7 +316,24 @@ class SupplierDiscoveryService:
 
             # Match explanation
             brief_title = brief.title if brief else "Packaging Sourcing Project"
-            hard_match_str = "Meets all specified search criteria." if is_hard_match else f"Fails {len(hard_failures)} hard requirement(s)."
+            if is_hard_match:
+                hard_match_str = "Meets all specified search criteria."
+            else:
+                uncertain_reasons = [
+                    reason for reason in hard_failures
+                    if "cannot confirm" in reason.lower() or "missing" in reason.lower()
+                ]
+                confirmed_failures = [
+                    reason for reason in hard_failures
+                    if reason not in uncertain_reasons
+                ]
+                if confirmed_failures and uncertain_reasons:
+                    hard_match_str = f"Fails {len(confirmed_failures)} confirmed requirement(s); {len(uncertain_reasons)} requirement(s) need buyer review."
+                elif confirmed_failures:
+                    hard_match_str = f"Fails {len(confirmed_failures)} hard requirement(s)."
+                else:
+                    hard_match_str = f"Eligibility unconfirmed ({len(uncertain_reasons)} requirement(s) need buyer review)."
+
             explanation = (
                 f"Evaluated against '{brief_title}'. Composite score: {total_score:.1f}/100. "
                 f"Organizational size: {supp.employee_range or 'N/A'}. "
