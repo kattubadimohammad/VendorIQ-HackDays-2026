@@ -81,7 +81,7 @@ def render_rfq_view(
         selected_brief_id = selected_brief_label.split(" – ")[0]
         active_brief = brief_map.get(selected_brief_id, brief)
     with col_b2:
-        st.metric("Buyer Organization", active_brief.buyer_organization or "Enterprise Procurement")
+        st.metric("Buyer Organization", active_brief.buyer_organization or "Not set")
 
     # Fetch RFQ KPIs for active brief
     kpis = service.get_rfq_kpis(brief_id=active_brief.brief_id)
@@ -292,7 +292,7 @@ def render_rfq_view(
                     c_card1, c_card2, c_card3 = st.columns(3)
                     c_card1.write(f"**Supplier:** {rfq.supplier.company_name}")
                     c_card1.write(f"**Domain:** `{rfq.supplier.domain}`")
-                    c_card2.write(f"**Quantity:** {rfq.product_requirements.expected_quantity}")
+                    c_card2.write(f"**Quantity:** {rfq.product_requirements.expected_quantity or "Not specified"}")
                     c_card2.write(f"**Deadline:** {rfq.buyer_info.response_deadline.strftime('%Y-%m-%d')}")
                     c_card3.write(f"**Status:** `{rfq.status.value}`")
                     c_card3.write(f"**Created:** {rfq.created_at.strftime('%Y-%m-%d %H:%M')}")
@@ -491,7 +491,7 @@ def render_rfq_view(
                     "Supplier": r.supplier.company_name,
                     "Domain": r.supplier.domain,
                     "Status": r.status.value,
-                    "Target Qty": r.product_requirements.expected_quantity,
+                    "Target Qty": r.product_requirements.expected_quantity or "Not specified",
                     "Deadline": r.buyer_info.response_deadline.strftime("%Y-%m-%d"),
                     "Last Actor": latest_audit.changed_by if latest_audit else "N/A",
                     "Updated At": r.updated_at.strftime("%Y-%m-%d %H:%M UTC"),
