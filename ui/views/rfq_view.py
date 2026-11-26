@@ -156,13 +156,14 @@ def render_rfq_view(
             with st.form("rfq_generation_form"):
                 col_b_info1, col_b_info2 = st.columns(2)
                 with col_b_info1:
-                    buyer_org_input = st.text_input("Buyer Entity Name", value=active_brief.buyer_organization or "Acme Procurement Corp")
-                    procurement_lead = st.text_input("Procurement Officer / Contact", value="Senior Sourcing Manager")
+                    buyer_org_input = st.text_input("Buyer Entity Name", value=active_brief.buyer_organization or "")
+                    procurement_lead = st.text_input("Procurement Officer / Contact", value="")
                 with col_b_info2:
                     contact_inbox = st.text_input("Official Inquiries / Bids Inbox", value="", placeholder="Enter a buyer-controlled business inbox; do not use a placeholder address")
-                    deadline_days = st.number_input("Response Deadline (Days from Today)", min_value=7, max_value=90, value=21, step=7)
-                    calc_deadline = datetime.now(timezone.utc) + timedelta(days=deadline_days)
-                    st.caption(f"Calculated Submission Deadline: **{calc_deadline.strftime('%Y-%m-%d %H:%M UTC')}**")
+                    deadline_days = st.number_input("Response Deadline (Days from Today)", min_value=7, max_value=90, value=None, step=7, placeholder="Enter buyer-approved deadline")
+                    if deadline_days is not None:
+                        calc_deadline = datetime.now(timezone.utc) + timedelta(days=int(deadline_days))
+                        st.caption(f"Calculated Submission Deadline: **{calc_deadline.strftime('%Y-%m-%d %H:%M UTC')}**")
 
                 st.markdown("---")
                 col_p1, col_p2 = st.columns(2)
@@ -170,7 +171,7 @@ def render_rfq_view(
                     target_volume = st.text_input("Expected Quantity / Target Volume", value="", placeholder="Enter the buyer-approved quantity and unit")
                     product_desc = st.text_area(
                         "Product Scope & Description",
-                        value=active_brief.description or "Multi-layer high-performance barrier packaging film for food contact and moisture protection.",
+                        value=active_brief.description or "",
                         height=100,
                     )
                 with col_p2:
@@ -180,14 +181,14 @@ def render_rfq_view(
                 st.markdown("---")
                 col_c1, col_c2, col_c3 = st.columns(3)
                 with col_c1:
-                    currency = st.selectbox("Quotation Currency", options=["USD", "INR", "EUR", "GBP"], index=0)
-                    target_price = st.number_input("Target Unit Price (Optional, 0 = Open)", min_value=0.0, value=4.50, step=0.10)
+                    currency = st.selectbox("Quotation Currency", options=["USD", "INR", "EUR", "GBP"], index=None, placeholder="Select buyer-approved currency")
+                    target_price = st.number_input("Target Unit Price (Optional)", min_value=0.0, value=None, step=0.10, placeholder="Optional")
                 with col_c2:
                     moq_req = st.number_input("Requested Minimum Order Qty (MOQ)", min_value=0, value=0, step=500)
-                    lead_time_wks = st.number_input("Max Production Lead Time (Weeks)", min_value=1, value=1, step=1, help="Set the buyer-approved maximum lead time.")
+                    lead_time_wks = st.number_input("Max Production Lead Time (Weeks)", min_value=1, value=None, step=1, help="Optional; enter only a buyer-approved maximum.")
                 with col_c3:
-                    incoterms = st.selectbox("Incoterms Baseline", options=["FOB Port of Origin", "CIF Buyer Fulfillment Center", "DDP Buyer Facility", "EXW Factory"], index=0)
-                    validity_days = st.number_input("Quotation Price Validity (Days)", min_value=15, value=15, step=15, help="Set the buyer-approved quotation validity period.")
+                    incoterms = st.selectbox("Incoterms Baseline (Optional)", options=["FOB", "CIF", "DDP", "EXW"], index=None, placeholder="Select only if buyer-approved")
+                    validity_days = st.number_input("Quotation Price Validity (Days)", min_value=1, value=None, step=1, help="Optional; enter only a buyer-approved validity period.")
 
                 col_terms1, col_terms2 = st.columns(2)
                 with col_terms1:
@@ -211,10 +212,25 @@ def render_rfq_view(
                 generate_submitted = st.form_submit_button("Generate & Persist Supplier-Specific RFQ(s)")
 
                 if generate_submitted:
+                    missing_required = []
+                    if not buyer_org_input.strip():
+                        missing_required.append("Buyer Entity Name")
+                    if not procurement_lead.strip():
+                        missing_required.append("Procurement Officer / Contact")
+                    if not target_volume.strip():
+                        missing_required.append("Expected Quantity / Target Volume")
+                    if not product_desc.strip():
+                        missing_required.append("Product Scope & Description")
+                    if deadline_days is None:
+                        missing_required.append("Response Deadline")
+                    if currency is None:
+                        missing_required.append("Quotation Currency")
                     if not gate_acknowledged:
                         st.error("Human Review Gate: You must acknowledge the safeguard checkbox before generating RFQs.")
                     elif not selected_suppliers:
                         st.error("Please select at least 1 supplier candidate.")
+                    elif missing_required:
+                        st.error("Complete the buyer-approved required fields: " + ", ".join(missing_required))
                     else:
                         created_count = 0
                         for supp in selected_suppliers:
@@ -227,11 +243,11 @@ def render_rfq_view(
                                 contact_person=procurement_lead.strip(),
                                 contact_email=contact_inbox.strip(),
                                 deadline_days=deadline_days,
-                                target_unit_price=target_price if target_price > 0 else None,
+                                target_unit_price=target_price if target_price is not None else None,
                                 min_order_quantity=moq_req if moq_req > 0 else None,
-                                production_lead_time_weeks=lead_time_wks if lead_time_wks > 0 else None,
+                                production_lead_time_weeks=lead_time_wks if lead_time_wks is not None else None,
                                 payment_terms=payment_terms.strip(),
-                                incoterms=incoterms.strip(),
+                                incoterms=incoterms.strip() if incoterms else None,
                                 delivery_location=delivery_hub.strip(),
                                 quotation_validity_days=validity_days,
                             )
