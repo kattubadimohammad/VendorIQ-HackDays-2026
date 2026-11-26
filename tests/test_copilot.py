@@ -307,6 +307,10 @@ class TestLiveDatabaseCopilotIntegration:
         assert recs[2].company_name == "Biopac India Corporation Ltd"
         assert recs[2].total_score == 76.50
 
+
+class TestCopilotDomainAttributionIntegrity:
+    """Isolated tests verifying domain attribution accuracy without accessing live production database."""
+
     def test_copilot_domain_attribution_accuracy_isolated_database(self, temp_db_path):
         """
         Verify that Copilot domain mismatch and risk answers accurately attribute domains
@@ -438,7 +442,3 @@ class TestLiveDatabaseCopilotIntegration:
         # Assert database isolation: evidence source reflects temp db, never production db
         assert os.path.basename(temp_db_path) in resp.evidence_sources[0]
         assert "vendoriq.sqlite" not in resp.evidence_sources[0]
-
-    def test_copilot_domain_attribution_accuracy_live_database(self, temp_db_path):
-        """Backward-compatible alias pointing directly to the isolated database implementation."""
-        self.test_copilot_domain_attribution_accuracy_isolated_database(temp_db_path)
