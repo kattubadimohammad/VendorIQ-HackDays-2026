@@ -446,7 +446,7 @@ class AISourcingCopilot:
             )
 
         return (
-            f"I have reviewed your query against the 18 live candidate packaging suppliers in `vendoriq.sqlite` under **{brief.title}**.\n\n"
+            f"I have reviewed your query against {len(suppliers)} supplier records in the active VendorIQ database under **{brief.title}**.\n\n"
             "All candidate evaluation scores are calculated deterministically across Industry Relevance (35%), Geographic Fit (25%), "
             "Company Size Fit (20%), Business Signals (10%), and Data Completeness (10%).\n\n"
             "Would you like me to extract structured brief criteria from a new procurement specification or compare specific short-listed candidates?"
