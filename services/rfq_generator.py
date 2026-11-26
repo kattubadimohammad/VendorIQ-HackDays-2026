@@ -513,7 +513,7 @@ class RFQDocumentGenerator:
         c_data = [
             [
                 Paragraph("<b>Quotation Currency</b>", bold_body),
-                Paragraph(rfq.commercial_requirements.currency, body_style),
+                Paragraph(rfq.commercial_requirements.currency or 'Supplier to specify', body_style),
             ],
             [
                 Paragraph("<b>Target Unit Price</b>", bold_body),
@@ -544,15 +544,15 @@ class RFQDocumentGenerator:
             ],
             [
                 Paragraph("<b>Payment Terms</b>", bold_body),
-                Paragraph(rfq.commercial_requirements.payment_terms, body_style),
+                Paragraph(rfq.commercial_requirements.payment_terms or 'Supplier to propose', body_style),
             ],
             [
                 Paragraph("<b>Incoterms</b>", bold_body),
-                Paragraph(rfq.commercial_requirements.incoterms, body_style),
+                Paragraph(rfq.commercial_requirements.incoterms or 'Supplier to propose', body_style),
             ],
             [
                 Paragraph("<b>Fulfillment Location</b>", bold_body),
-                Paragraph(rfq.commercial_requirements.delivery_location, body_style),
+                Paragraph(rfq.commercial_requirements.delivery_location or 'To be agreed', body_style),
             ],
         ]
         c_table = Table(c_data, colWidths=[160, 370])
