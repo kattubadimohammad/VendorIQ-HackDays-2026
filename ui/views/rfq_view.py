@@ -244,11 +244,15 @@ def render_rfq_view(
                                 contact_email=contact_inbox.strip(),
                                 deadline_days=deadline_days,
                                 target_unit_price=target_price if target_price is not None else None,
+                                currency=currency,
+                                product_description=product_desc.strip(),
+                                barrier_film_requirements=barrier_req.strip() or None,
+                                packaging_requirements=packaging_mode.strip() or None,
                                 min_order_quantity=moq_req if moq_req > 0 else None,
                                 production_lead_time_weeks=lead_time_wks if lead_time_wks is not None else None,
-                                payment_terms=payment_terms.strip(),
+                                payment_terms=payment_terms.strip() or None,
                                 incoterms=incoterms.strip() if incoterms else None,
-                                delivery_location=delivery_hub.strip(),
+                                delivery_location=delivery_hub.strip() or None,
                                 quotation_validity_days=validity_days,
                             )
                             created_count += 1
