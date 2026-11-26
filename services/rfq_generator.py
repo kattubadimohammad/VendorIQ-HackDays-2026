@@ -192,7 +192,7 @@ class RFQDocumentGenerator:
         self._docx_add_section_header(doc, "3. Scope of Supply & Technical Requirements")
         doc.add_paragraph(f"Category: {rfq.product_requirements.category}").runs[0].font.bold = True
         doc.add_paragraph(f"Requirement Description: {rfq.product_requirements.description or 'Not specified'}")
-        doc.add_paragraph(f"Target Delivery Quantity: {rfq.product_requirements.expected_quantity or "Not specified"}").runs[0].font.bold = True
+        doc.add_paragraph(f"Target Delivery Quantity: {rfq.product_requirements.expected_quantity or 'Not specified'}").runs[0].font.bold = True
 
         if rfq.product_requirements.barrier_film_requirements:
             p_bar = doc.add_paragraph()
@@ -494,7 +494,7 @@ class RFQDocumentGenerator:
         story.append(Paragraph("3. Scope of Supply & Technical Specifications", h2_style))
         story.append(Paragraph(f"<b>Category:</b> {rfq.product_requirements.category}", body_style))
         story.append(Paragraph(f"<b>Scope:</b> {rfq.product_requirements.description}", body_style))
-        story.append(Paragraph(f"<b>Target Volume:</b> {rfq.product_requirements.expected_quantity or "Not specified"}", bold_body))
+        story.append(Paragraph(f"<b>Target Volume:</b> {rfq.product_requirements.expected_quantity or 'Not specified'}", bold_body))
 
         if rfq.product_requirements.barrier_film_requirements:
             story.append(Paragraph(f"<b>Barrier Specifications:</b> {rfq.product_requirements.barrier_film_requirements}", body_style))
