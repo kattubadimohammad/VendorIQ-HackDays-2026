@@ -292,7 +292,7 @@ def render_rfq_view(
                     c_card1, c_card2, c_card3 = st.columns(3)
                     c_card1.write(f"**Supplier:** {rfq.supplier.company_name}")
                     c_card1.write(f"**Domain:** `{rfq.supplier.domain}`")
-                    c_card2.write(f"**Quantity:** {rfq.product_requirements.expected_quantity or "Not specified"}")
+                    c_card2.write(f"**Quantity:** {rfq.product_requirements.expected_quantity or 'Not specified'}")
                     c_card2.write(f"**Deadline:** {rfq.buyer_info.response_deadline.strftime('%Y-%m-%d')}")
                     c_card3.write(f"**Status:** `{rfq.status.value}`")
                     c_card3.write(f"**Created:** {rfq.created_at.strftime('%Y-%m-%d %H:%M')}")
