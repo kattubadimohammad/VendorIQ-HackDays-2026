@@ -81,7 +81,7 @@ def render_rfq_view(
         selected_brief_id = selected_brief_label.split(" – ")[0]
         active_brief = brief_map.get(selected_brief_id, brief)
     with col_b2:
-        st.metric("Buyer Organization", active_brief.buyer_organization or "Enterprise Procurement")
+        st.metric("Buyer Organization", active_brief.buyer_organization or "Not set")
 
     # Fetch RFQ KPIs for active brief
     kpis = service.get_rfq_kpis(brief_id=active_brief.brief_id)
@@ -156,50 +156,51 @@ def render_rfq_view(
             with st.form("rfq_generation_form"):
                 col_b_info1, col_b_info2 = st.columns(2)
                 with col_b_info1:
-                    buyer_org_input = st.text_input("Buyer Entity Name", value=active_brief.buyer_organization or "Acme Procurement Corp")
-                    procurement_lead = st.text_input("Procurement Officer / Contact", value="Senior Sourcing Manager")
+                    buyer_org_input = st.text_input("Buyer Entity Name", value=active_brief.buyer_organization or "")
+                    procurement_lead = st.text_input("Procurement Officer / Contact", value="")
                 with col_b_info2:
-                    contact_inbox = st.text_input("Official Inquiries / Bids Inbox", value="procurement.bids@acme-corp.com")
-                    deadline_days = st.number_input("Response Deadline (Days from Today)", min_value=7, max_value=90, value=21, step=7)
-                    calc_deadline = datetime.now(timezone.utc) + timedelta(days=deadline_days)
-                    st.caption(f"Calculated Submission Deadline: **{calc_deadline.strftime('%Y-%m-%d %H:%M UTC')}**")
+                    contact_inbox = st.text_input("Official Inquiries / Bids Inbox", value="", placeholder="Enter a buyer-controlled business inbox; do not use a placeholder address")
+                    deadline_days = st.number_input("Response Deadline (Days from Today)", min_value=7, max_value=90, value=None, step=7, placeholder="Enter buyer-approved deadline")
+                    if deadline_days is not None:
+                        calc_deadline = datetime.now(timezone.utc) + timedelta(days=int(deadline_days))
+                        st.caption(f"Calculated Submission Deadline: **{calc_deadline.strftime('%Y-%m-%d %H:%M UTC')}**")
 
                 st.markdown("---")
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
-                    target_volume = st.text_input("Expected Quantity / Target Volume", value="50,000 meters / rolls")
+                    target_volume = st.text_input("Expected Quantity / Target Volume", value="", placeholder="Enter the buyer-approved quantity and unit")
                     product_desc = st.text_area(
                         "Product Scope & Description",
-                        value=active_brief.description or "Multi-layer high-performance barrier packaging film for food contact and moisture protection.",
+                        value=active_brief.description or "",
                         height=100,
                     )
                 with col_p2:
-                    barrier_req = st.text_input("Barrier Film Requirements", value="High oxygen and moisture barrier (OTR < 1.0, WVTR < 0.5)")
-                    packaging_mode = st.text_input("Packaging & Shipping Requirements", value="Standard export wooden palletization with moisture-sealed shrink wrapping")
+                    barrier_req = st.text_input("Barrier Film Requirements", value="", placeholder="Enter approved technical thresholds and test methods")
+                    packaging_mode = st.text_input("Packaging & Shipping Requirements", value="", placeholder="Enter approved packaging and shipping requirements")
 
                 st.markdown("---")
                 col_c1, col_c2, col_c3 = st.columns(3)
                 with col_c1:
-                    currency = st.selectbox("Quotation Currency", options=["USD", "INR", "EUR", "GBP"], index=0)
-                    target_price = st.number_input("Target Unit Price (Optional, 0 = Open)", min_value=0.0, value=4.50, step=0.10)
+                    currency = st.selectbox("Quotation Currency", options=["USD", "INR", "EUR", "GBP"], index=None, placeholder="Select buyer-approved currency")
+                    target_price = st.number_input("Target Unit Price (Optional)", min_value=0.0, value=None, step=0.10, placeholder="Optional")
                 with col_c2:
-                    moq_req = st.number_input("Requested Minimum Order Qty (MOQ)", min_value=0, value=5000, step=500)
-                    lead_time_wks = st.number_input("Max Production Lead Time (Weeks)", min_value=1, value=6, step=1)
+                    moq_req = st.number_input("Requested Minimum Order Qty (MOQ)", min_value=0, value=0, step=500)
+                    lead_time_wks = st.number_input("Max Production Lead Time (Weeks)", min_value=1, value=None, step=1, help="Optional; enter only a buyer-approved maximum.")
                 with col_c3:
-                    incoterms = st.selectbox("Incoterms Baseline", options=["FOB Port of Origin", "CIF Buyer Fulfillment Center", "DDP Buyer Facility", "EXW Factory"], index=0)
-                    validity_days = st.number_input("Quotation Price Validity (Days)", min_value=15, value=60, step=15)
+                    incoterms = st.selectbox("Incoterms Baseline (Optional)", options=["FOB", "CIF", "DDP", "EXW"], index=None, placeholder="Select only if buyer-approved")
+                    validity_days = st.number_input("Quotation Price Validity (Days)", min_value=1, value=None, step=1, help="Optional; enter only a buyer-approved validity period.")
 
                 col_terms1, col_terms2 = st.columns(2)
                 with col_terms1:
-                    payment_terms = st.text_input("Payment Terms", value="Net 30 days upon delivery and technical quality acceptance")
+                    payment_terms = st.text_input("Payment Terms", value="", placeholder="Enter buyer-approved payment terms")
                 with col_terms2:
-                    delivery_hub = st.text_input("Fulfillment Delivery Location", value="Nhava Sheva Port / Mumbai Fulfilment Hub, India")
+                    delivery_hub = st.text_input("Fulfillment Delivery Location", value="", placeholder="Enter the confirmed delivery location")
 
                 st.markdown("---")
                 st.markdown("#### 🛡️ Truth-in-Evidence & Confidentiality Certification")
                 st.caption(
                     "VendorIQ automatically generates individualized questionnaires and evidence checklists "
-                    "tailored to each supplier's verified capabilities. Internal evaluation scores are never included."
+                    "tailored to available supplier records and clearly identified evidence gaps. Internal evaluation scores are never included."
                 )
 
                 gate_acknowledged = st.checkbox(
@@ -211,10 +212,25 @@ def render_rfq_view(
                 generate_submitted = st.form_submit_button("Generate & Persist Supplier-Specific RFQ(s)")
 
                 if generate_submitted:
+                    missing_required = []
+                    if not buyer_org_input.strip():
+                        missing_required.append("Buyer Entity Name")
+                    if not procurement_lead.strip():
+                        missing_required.append("Procurement Officer / Contact")
+                    if not target_volume.strip():
+                        missing_required.append("Expected Quantity / Target Volume")
+                    if not product_desc.strip():
+                        missing_required.append("Product Scope & Description")
+                    if deadline_days is None:
+                        missing_required.append("Response Deadline")
+                    if currency is None:
+                        missing_required.append("Quotation Currency")
                     if not gate_acknowledged:
                         st.error("Human Review Gate: You must acknowledge the safeguard checkbox before generating RFQs.")
                     elif not selected_suppliers:
                         st.error("Please select at least 1 supplier candidate.")
+                    elif missing_required:
+                        st.error("Complete the buyer-approved required fields: " + ", ".join(missing_required))
                     else:
                         created_count = 0
                         for supp in selected_suppliers:
@@ -227,12 +243,16 @@ def render_rfq_view(
                                 contact_person=procurement_lead.strip(),
                                 contact_email=contact_inbox.strip(),
                                 deadline_days=deadline_days,
-                                target_unit_price=target_price if target_price > 0 else None,
+                                target_unit_price=target_price if target_price is not None else None,
+                                currency=currency,
+                                product_description=product_desc.strip(),
+                                barrier_film_requirements=barrier_req.strip() or None,
+                                packaging_requirements=packaging_mode.strip() or None,
                                 min_order_quantity=moq_req if moq_req > 0 else None,
-                                production_lead_time_weeks=lead_time_wks if lead_time_wks > 0 else None,
-                                payment_terms=payment_terms.strip(),
-                                incoterms=incoterms.strip(),
-                                delivery_location=delivery_hub.strip(),
+                                production_lead_time_weeks=lead_time_wks if lead_time_wks is not None else None,
+                                payment_terms=payment_terms.strip() or None,
+                                incoterms=incoterms.strip() if incoterms else None,
+                                delivery_location=delivery_hub.strip() or None,
                                 quotation_validity_days=validity_days,
                             )
                             created_count += 1
@@ -272,7 +292,7 @@ def render_rfq_view(
                     c_card1, c_card2, c_card3 = st.columns(3)
                     c_card1.write(f"**Supplier:** {rfq.supplier.company_name}")
                     c_card1.write(f"**Domain:** `{rfq.supplier.domain}`")
-                    c_card2.write(f"**Quantity:** {rfq.product_requirements.expected_quantity}")
+                    c_card2.write(f"**Quantity:** {rfq.product_requirements.expected_quantity or 'Not specified'}")
                     c_card2.write(f"**Deadline:** {rfq.buyer_info.response_deadline.strftime('%Y-%m-%d')}")
                     c_card3.write(f"**Status:** `{rfq.status.value}`")
                     c_card3.write(f"**Created:** {rfq.created_at.strftime('%Y-%m-%d %H:%M')}")
@@ -306,8 +326,8 @@ def render_rfq_view(
                     if rfq.status == RFQStatus.DRAFT:
                         st.markdown("##### 🚀 Action: Submit for Formal Review")
                         with st.form(f"submit_form_{rfq.rfq_id}"):
-                            sub_name = st.text_input("Your Name / Procurement Role", value="Lead Buyer", key=f"sub_name_{rfq.rfq_id}")
-                            sub_notes = st.text_input("Submission Notes", value="Completed commercial terms review. Submitting for formal approval.", key=f"sub_notes_{rfq.rfq_id}")
+                            sub_name = st.text_input("Your Name / Procurement Role", value="", placeholder="Enter your name or role", key=f"sub_name_{rfq.rfq_id}")
+                            sub_notes = st.text_input("Submission Notes", value="", placeholder="Enter submission notes", key=f"sub_notes_{rfq.rfq_id}")
                             if st.form_submit_button("Submit for Approval"):
                                 service.submit_rfq_for_approval(rfq.rfq_id, sub_name, sub_notes)
                                 st.success("RFQ submitted for formal approval!")
@@ -318,8 +338,8 @@ def render_rfq_view(
                         col_app, col_rej = st.columns(2)
                         with col_app:
                             with st.form(f"approve_form_{rfq.rfq_id}"):
-                                reviewer_name = st.text_input("Reviewer Name", value="Procurement Director", key=f"rev_name_{rfq.rfq_id}")
-                                app_notes = st.text_area("Approval Authorization Notes", value="Verified technical specifications, supplier evidence, and commercial terms. Approved for distribution.", key=f"app_notes_{rfq.rfq_id}")
+                                reviewer_name = st.text_input("Reviewer Name", value="", placeholder="Enter reviewer name", key=f"rev_name_{rfq.rfq_id}")
+                                app_notes = st.text_area("Approval Authorization Notes", value="", placeholder="Record the actual review and authorization basis", key=f"app_notes_{rfq.rfq_id}")
                                 if st.form_submit_button("✅ Approve RFQ & Generate Documents"):
                                     try:
                                         service.approve_rfq(rfq.rfq_id, reviewer_name, app_notes)
@@ -330,8 +350,8 @@ def render_rfq_view(
 
                         with col_rej:
                             with st.form(f"reject_form_{rfq.rfq_id}"):
-                                rej_name = st.text_input("Reviewer Name", value="Procurement Director", key=f"rej_name_{rfq.rfq_id}")
-                                rej_notes = st.text_area("Rejection Feedback / Reasons", value="Please revise minimum order quantity and clarify moisture barrier specs.", key=f"rej_notes_{rfq.rfq_id}")
+                                rej_name = st.text_input("Reviewer Name", value="", placeholder="Enter reviewer name", key=f"rej_name_{rfq.rfq_id}")
+                                rej_notes = st.text_area("Rejection Feedback / Reasons", value="", placeholder="Enter actual rejection feedback", key=f"rej_notes_{rfq.rfq_id}")
                                 if st.form_submit_button("❌ Reject RFQ (Request Revisions)"):
                                     try:
                                         service.reject_rfq(rfq.rfq_id, rej_name, rej_notes)
@@ -343,8 +363,8 @@ def render_rfq_view(
                     elif rfq.status == RFQStatus.REJECTED:
                         st.markdown("##### 🔄 Action: Revise & Return to Draft")
                         with st.form(f"revise_form_{rfq.rfq_id}"):
-                            rev_user = st.text_input("Your Name", value="Lead Buyer", key=f"rev_user_{rfq.rfq_id}")
-                            rev_comments = st.text_input("Revision Notes", value="Incorporated feedback. Moving back to DRAFT to modify specifications.", key=f"rev_comm_{rfq.rfq_id}")
+                            rev_user = st.text_input("Your Name", value="", placeholder="Enter your name", key=f"rev_user_{rfq.rfq_id}")
+                            rev_comments = st.text_input("Revision Notes", value="", placeholder="Enter actual revision notes", key=f"rev_comm_{rfq.rfq_id}")
                             if st.form_submit_button("Revert to DRAFT for Editing"):
                                 service.revise_rfq(rfq.rfq_id, rev_user, rev_comments)
                                 st.info("RFQ reverted to DRAFT. You may now update its details.")
@@ -354,10 +374,10 @@ def render_rfq_view(
                         st.markdown("##### 📤 Action: Confirm Manual External Dispatch")
                         st.info("Remember: VendorIQ **never** transmits automated emails. Once you dispatch the RFQ via your company's corporate email or procurement portal, log the confirmation below.")
                         with st.form(f"dispatch_form_{rfq.rfq_id}"):
-                            disp_user = st.text_input("Dispatcher Name", value="Procurement Buyer", key=f"disp_user_{rfq.rfq_id}")
+                            disp_user = st.text_input("Dispatcher Name", value="", placeholder="Enter dispatcher name", key=f"disp_user_{rfq.rfq_id}")
                             disp_notes = st.text_area(
                                 "Transmission Confirmation Notes",
-                                value=f"Transmitted signed RFQ PDF to {rfq.supplier.company_name} official corporate contact via company procurement portal.",
+                                value="",
                                 key=f"disp_notes_{rfq.rfq_id}",
                             )
                             if st.form_submit_button("Confirm Manual Dispatch (Mark as SENT)"):
@@ -371,10 +391,10 @@ def render_rfq_view(
                     elif rfq.status == RFQStatus.SENT:
                         st.markdown("##### 📥 Action: Record Supplier Response")
                         with st.form(f"response_form_{rfq.rfq_id}"):
-                            resp_user = st.text_input("Receiver Name", value="Procurement Buyer", key=f"resp_user_{rfq.rfq_id}")
+                            resp_user = st.text_input("Receiver Name", value="", placeholder="Enter receiver name", key=f"resp_user_{rfq.rfq_id}")
                             resp_summary = st.text_area(
                                 "Supplier Response Summary",
-                                value="Supplier submitted formal quote proposal ($4.20/unit, 4 weeks lead time) and attached ASTM test reports.",
+                                value="", placeholder="Summarize the response actually received",
                                 key=f"resp_summary_{rfq.rfq_id}",
                             )
                             if st.form_submit_button("Record Response Received"):
@@ -388,8 +408,8 @@ def render_rfq_view(
                     elif rfq.status in (RFQStatus.RESPONSE_RECEIVED, RFQStatus.CLOSED):
                         if rfq.status == RFQStatus.RESPONSE_RECEIVED:
                             with st.form(f"close_form_{rfq.rfq_id}"):
-                                close_user = st.text_input("Closing Official", value="Procurement Director", key=f"close_user_{rfq.rfq_id}")
-                                close_reason = st.text_input("Resolution Summary", value="Vendor contract finalized and awarded.", key=f"close_reason_{rfq.rfq_id}")
+                                close_user = st.text_input("Closing Official", value="", placeholder="Enter closing official", key=f"close_user_{rfq.rfq_id}")
+                                close_reason = st.text_input("Resolution Summary", value="", placeholder="Enter actual resolution summary", key=f"close_reason_{rfq.rfq_id}")
                                 if st.form_submit_button("Close RFQ"):
                                     service.close_supplier_rfq(rfq.rfq_id, close_user, close_reason)
                                     st.success("RFQ successfully marked as CLOSED.")
@@ -471,7 +491,7 @@ def render_rfq_view(
                     "Supplier": r.supplier.company_name,
                     "Domain": r.supplier.domain,
                     "Status": r.status.value,
-                    "Target Qty": r.product_requirements.expected_quantity,
+                    "Target Qty": r.product_requirements.expected_quantity or "Not specified",
                     "Deadline": r.buyer_info.response_deadline.strftime("%Y-%m-%d"),
                     "Last Actor": latest_audit.changed_by if latest_audit else "N/A",
                     "Updated At": r.updated_at.strftime("%Y-%m-%d %H:%M UTC"),

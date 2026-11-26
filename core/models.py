@@ -842,10 +842,10 @@ class RFQProductRequirements(BaseModel):
     Detailed technical product requirements specified by the buyer.
     """
     category: str = Field(..., min_length=2)
-    description: str = Field(..., min_length=5)
+    description: Optional[str] = Field(default=None)
     technical_specifications: List[str] = Field(default_factory=list)
     barrier_film_requirements: Optional[str] = None
-    expected_quantity: str = Field(..., min_length=1, description="Target volume (e.g. 50,000 units)")
+    expected_quantity: Optional[str] = Field(default=None, description="Buyer-approved target volume and unit")
     packaging_requirements: Optional[str] = None
 
 
@@ -853,14 +853,14 @@ class RFQCommercialRequirements(BaseModel):
     """
     Commercial parameters and terms requested from the supplier.
     """
-    currency: str = Field(default="USD")
+    currency: Optional[str] = Field(default=None)
     target_unit_price: Optional[float] = Field(default=None, ge=0.0)
     min_order_quantity: Optional[int] = Field(default=None, ge=1)
     production_lead_time_weeks: Optional[int] = Field(default=None, ge=1)
-    payment_terms: str = Field(default="Net 30 days upon delivery and inspection")
-    incoterms: str = Field(default="FOB Port of Origin / CIF Destination")
-    delivery_location: str = Field(default="Standard fulfilment hub")
-    quotation_validity_days: int = Field(default=60, ge=1)
+    payment_terms: Optional[str] = None
+    incoterms: Optional[str] = None
+    delivery_location: Optional[str] = None
+    quotation_validity_days: Optional[int] = Field(default=None, ge=1)
 
 
 class RFQSupplierTarget(BaseModel):

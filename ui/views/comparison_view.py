@@ -106,6 +106,7 @@ def render_comparison_view(
 
     # 2. Side-by-Side Factor Score Matrix
     st.subheader("Side-by-Side Scoring Breakdown")
+    st.caption("Profile Completeness (10%) is the evaluation score for available profile fields. It is different from Evidence Completeness in the Trust Center, which measures how many of the seven evidence categories contain a record. Neither metric means the information is independently verified.")
     comparison_rows = []
     for sc in selected_evals:
         s = supp_map.get(sc.supplier_id)
@@ -118,7 +119,7 @@ def render_comparison_view(
             "Geographic (25%)": f"{f[ScoringDimension.GEOGRAPHIC_FIT].score:.0f}",
             "Size Fit (20%)": f"{f[ScoringDimension.COMPANY_SIZE_FIT].score:.0f}",
             "Signals (10%)": f"{f[ScoringDimension.BUSINESS_SIGNALS].score:.0f}",
-            "Completeness (10%)": f"{f[ScoringDimension.DATA_COMPLETENESS].score:.0f}%",
+            "Profile Completeness (10%)": f"{f[ScoringDimension.DATA_COMPLETENESS].score:.0f}%",
             "Headcount Range": s.employee_range if s else "N/A",
         })
 

@@ -38,6 +38,24 @@ from services.evidence_service import SupplierEvidenceService
 logger = logging.getLogger(__name__)
 
 
+def _employee_range_bounds(value: Optional[str]) -> Optional[tuple[int, int]]:
+    """Parse a directory headcount band such as '51-200' without treating its upper bound as actual headcount."""
+    if not value:
+        return None
+    normalized = value.strip().replace(",", "")
+    match = re.fullmatch(r"(\d+)\s*[-–]\s*(\d+)", normalized)
+    if match:
+        lower, upper = int(match.group(1)), int(match.group(2))
+        return (lower, upper) if lower <= upper else None
+    match = re.fullmatch(r"(\d+)\s*\+", normalized)
+    if match:
+        return int(match.group(1)), 2**31 - 1
+    match = re.fullmatch(r"(?:over|more than)\s*(\d+)", normalized, re.IGNORECASE)
+    if match:
+        return int(match.group(1)) + 1, 2**31 - 1
+    return None
+
+
 def _extract_query_tokens(text: Optional[str]) -> Set[str]:
     """Extract clean alphanumeric query tokens for local matching."""
     if not text:
@@ -177,10 +195,31 @@ class SupplierDiscoveryService:
                 if supp.employee_range not in filter_params.employee_ranges:
                     hard_failures.append(f"Employee range {supp.employee_range or 'N/A'} not in selected filters")
 
-            # Min/max company size bounds
-            if filter_params.min_company_size is not None and supp.employee_count is not None:
-                if supp.employee_count < filter_params.min_company_size:
-                    hard_failures.append(f"Employee count ({supp.employee_count}) below minimum ({filter_params.min_company_size})")
+            # Minimum company size: a directory range is not an exact employee count.
+            # A band that overlaps the threshold is not a confirmed pass.
+            min_size = filter_params.min_company_size
+            if brief and brief.criteria.min_company_size is not None:
+                min_size = max(min_size or 0, brief.criteria.min_company_size)
+            if min_size is not None:
+                if supp.employee_count is not None:
+                    if supp.employee_count < min_size:
+                        hard_failures.append(
+                            f"Employee count ({supp.employee_count}) below minimum ({min_size})"
+                        )
+                else:
+                    bounds = _employee_range_bounds(supp.employee_range)
+                    if bounds is None:
+                        hard_failures.append(
+                            f"Cannot confirm minimum headcount of {min_size}: employee count/range is missing or unparseable"
+                        )
+                    elif bounds[1] < min_size:
+                        hard_failures.append(
+                            f"Employee range {supp.employee_range} is below minimum headcount ({min_size})"
+                        )
+                    elif bounds[0] < min_size:
+                        hard_failures.append(
+                            f"Cannot confirm minimum headcount of {min_size} from directory range {supp.employee_range}"
+                        )
 
             # Hard: Manufacturing capability
             if filter_params.require_manufacturing:
@@ -277,7 +316,24 @@ class SupplierDiscoveryService:
 
             # Match explanation
             brief_title = brief.title if brief else "Packaging Sourcing Project"
-            hard_match_str = "Meets all specified search criteria." if is_hard_match else f"Fails {len(hard_failures)} hard requirement(s)."
+            if is_hard_match:
+                hard_match_str = "Meets all specified search criteria."
+            else:
+                uncertain_reasons = [
+                    reason for reason in hard_failures
+                    if "cannot confirm" in reason.lower() or "missing" in reason.lower()
+                ]
+                confirmed_failures = [
+                    reason for reason in hard_failures
+                    if reason not in uncertain_reasons
+                ]
+                if confirmed_failures and uncertain_reasons:
+                    hard_match_str = f"Fails {len(confirmed_failures)} confirmed requirement(s); {len(uncertain_reasons)} requirement(s) need buyer review."
+                elif confirmed_failures:
+                    hard_match_str = f"Fails {len(confirmed_failures)} hard requirement(s)."
+                else:
+                    hard_match_str = f"Eligibility unconfirmed ({len(uncertain_reasons)} requirement(s) need buyer review)."
+
             explanation = (
                 f"Evaluated against '{brief_title}'. Composite score: {total_score:.1f}/100. "
                 f"Organizational size: {supp.employee_range or 'N/A'}. "

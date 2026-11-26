@@ -14,6 +14,7 @@ Key Safeguards:
 
 import json
 import logging
+import os
 import re
 import uuid
 from typing import List, Dict, Any, Optional
@@ -324,11 +325,11 @@ class AISourcingCopilot:
         Answer buyer procurement queries grounded in active SQLite records and scorecards.
         """
         suppliers = self.repository.list_suppliers(limit=100)
-        evals = self.repository.list_evaluations_for_run(
-            self.repository.list_scoring_runs_for_brief(current_brief.brief_id)[0]["run_id"]
-        ) if self.repository.list_scoring_runs_for_brief(current_brief.brief_id) else []
-
         top_candidates = self.recommend_candidates(brief=current_brief, top_k=3)
+        runs = self.repository.list_scoring_runs_for_brief(current_brief.brief_id)
+        evals = self.repository.list_evaluations_for_run(runs[0]["run_id"]) if runs else []
+
+        db_name = os.path.basename(self.repository.db_path) or "database.sqlite"
 
         if self.is_online:
             try:
@@ -339,7 +340,7 @@ class AISourcingCopilot:
                     assistant_message=response_text,
                     recommended_suppliers=top_candidates,
                     provenance=ProvenanceClassification.AI_ASSESSMENT,
-                    evidence_sources=["vendoriq.sqlite (supplier_profiles, evaluations)"],
+                    evidence_sources=[f"{db_name} (supplier_profiles, evaluations)"],
                     grounded_record_count=len(suppliers),
                     model_used=self.model_name,
                 )
@@ -352,7 +353,7 @@ class AISourcingCopilot:
             assistant_message=fallback_msg,
             recommended_suppliers=top_candidates,
             provenance=ProvenanceClassification.AI_ASSESSMENT,
-            evidence_sources=["vendoriq.sqlite (Deterministic Grounding)"],
+            evidence_sources=[f"{db_name} (Deterministic Grounding)"],
             grounded_record_count=len(suppliers),
             model_used="Deterministic Fallback (Offline Mode)",
         )
@@ -378,6 +379,14 @@ class AISourcingCopilot:
                 f"- #{idx} {s.company_name} (Domain: {s.domain}, Headcount: {s.employee_range or 'N/A'}, "
                 f"Score: {score_str}/100): {desc_snippet}"
             )
+
+        audit_report = self.auditor.audit_records(suppliers)
+        flagged_mismatches = audit_report.flagged_suppliers_for_review
+        if flagged_mismatches:
+            lines.append("\nDATA QUALITY AUDIT — FLAGGED DOMAIN MISMATCHES:")
+            for f in flagged_mismatches:
+                lines.append(f"- {f['company_name']} -> Directory domain: '{f['domain']}' (ALERT: {f['reason']})")
+
         return "\n".join(lines)
 
     def _chat_with_gemini(
@@ -395,6 +404,8 @@ class AISourcingCopilot:
         Answer the buyer query thoroughly and professionally based ONLY on the grounded records above.
         Follow all procurement rules:
         - Never invent certifications or capacity figures.
+        - Never attribute a domain or website to a supplier unless explicitly documented in the grounded records above.
+        - Only reference directory domains and audit warnings that appear in the grounded records.
         - Clarify that descriptions are self-reported.
         - State clearly that physical facility audits are required before RFQ award.
         """
@@ -416,38 +427,98 @@ class AISourcingCopilot:
         suppliers: List[SupplierProfile],
         evaluations: List[SupplierScore],
     ) -> str:
-        """Deterministic response synthesizer for offline mode."""
+        """Build an offline answer using only the supplied supplier records and scores."""
         q_lower = query.lower()
+        supplier_map = {s.supplier_id: s for s in suppliers}
+        ranked = sorted(evaluations, key=lambda item: item.total_score, reverse=True)
+        ranked_suppliers = [
+            (supplier_map[e.supplier_id], e)
+            for e in ranked
+            if e.supplier_id in supplier_map
+        ]
+        lines = [
+            f"**Active brief:** {brief.title}",
+            f"**Supplier records available:** {len(suppliers)}",
+            "",
+        ]
 
-        if "recommend" in q_lower or "best" in q_lower or "top" in q_lower:
-            top_3 = evaluations[:3] if evaluations else []
-            names = [f"**#{i} {e.company_name}** ({e.total_score:.2f}/100)" for i, e in enumerate(top_3, 1)]
-            return (
-                f"Based on the active brief criteria (**{brief.title}**), the top deterministically ranked packaging candidates in India are:\n\n"
-                + "\n".join([f"- {n}" for n in names]) +
-                "\n\n**Procurement Notice**: These candidates were evaluated against basic Crustdata directory overviews. "
-                "No supplier is certified, verified, or approved without independent technical inspection."
-            )
+        if any(term in q_lower for term in ("sustain", "green", "bio", "compost", "recycl")):
+            keywords = ("sustain", "green", "bio", "compost", "recycl", "water-soluble")
+            matches = [
+                s for s in suppliers
+                if any(word in (s.description or "").lower() for word in keywords)
+            ]
+            lines.append("**Supplier descriptions mentioning sustainability-related terms**")
+            if matches:
+                for supplier in matches:
+                    snippet = supplier.description or "No description recorded."
+                    lines.append(f"- **{supplier.company_name}:** {snippet} (directory description; not independently verified)")
+            else:
+                lines.append("- No matching sustainability-related description was found in the available supplier records.")
+            lines.append("No sustainability certification should be treated as verified unless a current third-party certificate is recorded in the evidence register.")
+            return "\n".join(lines)
 
-        if "bio" in q_lower or "sustainable" in q_lower or "green" in q_lower:
-            arrow = next((s for s in suppliers if "arrow" in s.company_name.lower()), None)
-            return (
-                f"For sustainable packaging requirements, **Arrow Greentech Ltd.** (`arrowgreentech.com`, Ranked #2) "
-                "specifically mentions compostable and water-soluble films in its self-reported overview. "
-                "However, third-party biodegradability certifications (e.g. ASTM D6400 / EN 13432) are unverified in this basic directory tier and must be audited before RFP."
-            )
+        if any(term in q_lower for term in ("domain", "website", "url")) and any(term in q_lower for term in ("mismatch", "risk", "alert", "audit", "flag", "check")):
+            audit_report = self.auditor.audit_records(suppliers)
+            flagged = audit_report.flagged_suppliers_for_review
+            lines.append("**Domain Mismatch & Verification Alerts**")
+            if flagged:
+                for f in flagged:
+                    lines.append(
+                        f"- **{f['company_name']}:** Registered directory domain is `{f['domain']}`. "
+                        f"Audit Warning: {f['reason']}"
+                    )
+            else:
+                lines.append("- No domain mismatches detected among active supplier profiles.")
+            lines.append("")
+            lines.append("Database Evidence Verification:")
+            if flagged:
+                for f in flagged:
+                    lines.append(
+                        f"- `{f['domain']}` is registered in directory records for **{f['company_name']}** (`{f['supplier_id']}`) — flagged for domain mismatch."
+                    )
+            flagged_ids = {f["supplier_id"] for f in flagged}
+            matching_suppliers = [s for s in suppliers if s.supplier_id not in flagged_ids and s.domain]
+            if matching_suppliers:
+                for s in matching_suppliers:
+                    lines.append(
+                        f"- Suppliers such as **{s.company_name}** (`{s.domain}`) have matching directory domains."
+                    )
+            lines.append("Never infer or assume a supplier's official domain without independent DNS, documentary, or corporate registry verification.")
+            return "\n".join(lines)
 
-        if "risk" in q_lower or "mismatch" in q_lower or "alert" in q_lower:
-            return (
-                "**Data Quality & Due Diligence Alerts**:\n\n"
-                "1. **Biopac India Corporation Ltd** (`ecpulse.com`): Primary domain stem differs from legal company name. Requires manual verification of parent holding portal.\n"
-                "2. **VIKAAS PAPER FLEXO PACKAGING LIMITED** (`kediainfo.com`): Operates under Kedia Group domain. Requires manual corporate verification.\n"
-                "3. **Headquarters Addresses**: City-level addresses are unpopulated in the basic discovery index across all 18 candidates; on-site facility audits are required."
-            )
+        if any(term in q_lower for term in ("risk", "mismatch", "alert", "missing", "gap", "evidence", "strength")):
+            audit_report = self.auditor.audit_records(suppliers)
+            flagged_mismatch_map = {f["supplier_id"]: f for f in audit_report.flagged_suppliers_for_review}
+            lines.append("**Data Quality & Due Diligence Alerts**")
+            for supplier in suppliers:
+                gaps = []
+                if supplier.supplier_id in flagged_mismatch_map:
+                    f = flagged_mismatch_map[supplier.supplier_id]
+                    gaps.append(f"domain mismatch: directory domain is '{f['domain']}' ({f['reason']})")
+                if not supplier.headquarters_city:
+                    gaps.append("headquarters city not recorded")
+                if not supplier.certifications:
+                    gaps.append("no certification listed in the supplier profile")
+                if not supplier.employee_range:
+                    gaps.append("employee range not recorded")
+                if gaps:
+                    lines.append(f"- **{supplier.company_name}:** " + "; ".join(gaps))
+            lines.append("A missing field means the information is not available in VendorIQ; it does not prove the supplier lacks the capability or certification.")
+            lines.append("Supplier descriptions and directory attributes are not independent verification. Confirm legal identity, facility details, capacity and technical claims before proceeding.")
+            return "\n".join(lines)
 
-        return (
-            f"I have reviewed your query against the 18 live candidate packaging suppliers in `vendoriq.sqlite` under **{brief.title}**.\n\n"
-            "All candidate evaluation scores are calculated deterministically across Industry Relevance (35%), Geographic Fit (25%), "
-            "Company Size Fit (20%), Business Signals (10%), and Data Completeness (10%).\n\n"
-            "Would you like me to extract structured brief criteria from a new procurement specification or compare specific short-listed candidates?"
-        )
+        lines.append("**Top candidates by deterministic evaluation score**")
+        if ranked_suppliers:
+            for rank, (supplier, evaluation) in enumerate(ranked_suppliers[:3], 1):
+                description = supplier.description or "No supplier description recorded."
+                lines.append(
+                    f"- **#{rank} {supplier.company_name} — {evaluation.total_score:.1f}/100.** "
+                    f"Reported employee range: {supplier.employee_range or 'not recorded'}. "
+                    f"Directory description: {description[:240]}"
+                )
+        else:
+            lines.append("- No evaluation scores are available for this brief yet.")
+        lines.append("")
+        lines.append("Scores are deterministic screening assessments, not supplier certifications, verified production capacity, or award decisions.")
+        return "\n".join(lines)

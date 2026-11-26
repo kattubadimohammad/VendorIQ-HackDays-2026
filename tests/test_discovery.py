@@ -258,6 +258,29 @@ class TestSupplierDiscoveryService:
             ).lower()
             assert "barrier" in searchable_text or "film" in searchable_text
 
+    def test_match_explanation_distinguishes_uncertain_review_from_confirmed_failure(self, discovery_service):
+        """Verify that candidates with unconfirmed headcount (e.g. 51-200) do NOT say 'Fails 1 hard requirement(s)'."""
+        service = discovery_service
+        brief = SourcingBrief(
+            brief_id="TEST-BRIEF-HEADCOUNT",
+            title="Packaging Sourcing",
+            buyer_organization="Acme Procurement",
+            description="Testing headcount filtering",
+            criteria=SourcingCriteria(
+                target_industries=["Packaging and Containers Manufacturing"],
+                target_geographies=["India"],
+                min_company_size=200,
+            ),
+        )
+        service.repository.create_brief(brief)
+        recs = service.discover_suppliers(brief=brief)
+        # SYNTH_BETA has employee_range="51-200", which overlaps 200 but lower bound is 51
+        beta_rec = next(r for r in recs if r.supplier_id == "SYNTH_BETA")
+        assert not beta_rec.is_hard_match
+        assert "Eligibility unconfirmed" in beta_rec.match_explanation
+        assert "Fails 1 hard requirement(s)" not in beta_rec.match_explanation
+        assert "need buyer review" in beta_rec.match_explanation
+
     def test_hard_requirement_barrier_film_filtering(self, discovery_service):
         """Hard filter: require_barrier_films flags suppliers without barrier evidence."""
         recs = discovery_service.discover_suppliers(

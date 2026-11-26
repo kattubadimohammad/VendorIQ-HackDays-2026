@@ -52,18 +52,22 @@ class RFQService:
         brief: SourcingBrief,
         supplier: SupplierProfile,
         shortlist_id: Optional[str] = None,
-        expected_quantity: str = "50,000 units",
+        expected_quantity: Optional[str] = None,
         buyer_organization: Optional[str] = None,
         contact_person: Optional[str] = None,
         contact_email: Optional[str] = None,
         deadline_days: int = 21,
         target_unit_price: Optional[float] = None,
+        currency: Optional[str] = None,
+        product_description: Optional[str] = None,
+        barrier_film_requirements: Optional[str] = None,
+        packaging_requirements: Optional[str] = None,
         min_order_quantity: Optional[int] = None,
         production_lead_time_weeks: Optional[int] = None,
-        payment_terms: str = "Net 30 days upon delivery and technical acceptance",
-        incoterms: str = "FOB Port of Origin / CIF Buyer Fulfillment Center",
-        delivery_location: str = "Standard Fulfillment Hub, India",
-        quotation_validity_days: int = 60,
+        payment_terms: Optional[str] = None,
+        incoterms: Optional[str] = None,
+        delivery_location: Optional[str] = None,
+        quotation_validity_days: Optional[int] = None,
         custom_specs: Optional[List[str]] = None,
         custom_questions: Optional[List[str]] = None,
     ) -> RFQDocumentRecord:
@@ -73,7 +77,9 @@ class RFQService:
         """
         now = datetime.now(timezone.utc)
         deadline = now + timedelta(days=deadline_days)
-        buyer_org = buyer_organization or brief.buyer_organization or "VendorIQ Enterprise Sourcing"
+        buyer_org = buyer_organization or brief.buyer_organization
+        if not buyer_org or len(buyer_org.strip()) < 2:
+            raise DataValidationError("Buyer organization must be supplied before creating an RFQ.")
         ref_code = f"RFQ-{brief.brief_id[:8].upper()}-{supplier.supplier_id[:8].upper()}"
 
         # Fetch supplier evidence records to identify missing proof and domain flags
@@ -171,27 +177,27 @@ class RFQService:
             rfq_reference=ref_code,
             issue_date=now,
             response_deadline=deadline,
-            contact_email=contact_email or "procurement@vendoriq.internal",
-            contact_person=contact_person or "Procurement Lead",
+            contact_email=contact_email or None,
+            contact_person=contact_person or None,
         )
 
         product_reqs = RFQProductRequirements(
             category=brief.criteria.target_industries[0] if brief.criteria.target_industries else "Flexible Packaging",
-            description=brief.description or f"Procurement of industrial packaging materials for {brief.title}",
+            description=product_description or brief.description or "Not specified",
             technical_specifications=tech_specs,
-            barrier_film_requirements="High-performance moisture and oxygen barrier packaging films",
-            expected_quantity=expected_quantity,
-            packaging_requirements="Standard export palletization, moisture-sealed shrink wrapping",
+            barrier_film_requirements=barrier_film_requirements or None,
+            expected_quantity=expected_quantity.strip() if expected_quantity else None,
+            packaging_requirements=packaging_requirements or None,
         )
 
         commercial_reqs = RFQCommercialRequirements(
-            currency="USD",
+            currency=currency,
             target_unit_price=target_unit_price,
             min_order_quantity=min_order_quantity,
             production_lead_time_weeks=production_lead_time_weeks,
-            payment_terms=payment_terms,
-            incoterms=incoterms,
-            delivery_location=delivery_location,
+            payment_terms=payment_terms or None,
+            incoterms=incoterms or None,
+            delivery_location=delivery_location or None,
             quotation_validity_days=quotation_validity_days,
         )
 

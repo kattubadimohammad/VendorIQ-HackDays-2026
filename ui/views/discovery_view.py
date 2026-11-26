@@ -173,17 +173,26 @@ def render_discovery_view(
 
     total_matches = len(recommendations)
     hard_matches = sum(1 for r in recommendations if r.is_hard_match)
-    disqualified = total_matches - hard_matches
+    review_required = sum(
+        1 for r in recommendations
+        if not r.is_hard_match and any(
+            "cannot confirm" in reason.lower() or "missing" in reason.lower()
+            for reason in r.hard_filter_failures
+        )
+    )
+    disqualified = total_matches - hard_matches - review_required
 
     # KPI Summary Cards
-    col_k1, col_k2, col_k3, col_k4 = st.columns(4)
+    col_k1, col_k2, col_k3, col_k4, col_k5 = st.columns(5)
     with col_k1:
         st.metric("Discovered Candidates", f"{total_matches} Vendors", f"From {len(suppliers)} in SQLite")
     with col_k2:
-        st.metric("Fully Qualified Matches", f"{hard_matches} Vendors", "Satisfy All Hard Criteria" if req_mfg or req_barrier or req_flex or req_sust or exclude_mismatch else "No Hard Filters Set")
+        st.metric("Confirmed Filter Matches", f"{hard_matches} Vendors", "No hard constraints set" if not (req_mfg or req_barrier or req_flex or req_sust or exclude_mismatch or (brief and brief.criteria.min_company_size)) else "All active constraints satisfied")
     with col_k3:
-        st.metric("Disqualified on Hard Filters", f"{disqualified} Vendors", "Disqualified" if disqualified else "Zero Disqualified")
+        st.metric("Needs Eligibility Review", f"{review_required} Vendors", "Missing or ambiguous evidence")
     with col_k4:
+        st.metric("Confirmed Constraint Failures", f"{disqualified} Vendors", "Confirmed failures only")
+    with col_k5:
         top_score = recommendations[0].total_score if recommendations else 0.0
         st.metric("Top Candidate Score", f"{top_score:.1f} / 100", "Deterministic Scorecard")
 
@@ -230,7 +239,22 @@ def render_discovery_view(
                     col_rh1, col_rh2 = st.columns([4, 1])
                     with col_rh1:
                         rank_badge = f"**#{rec.rank}**"
-                        hard_pill = "🟢 **MATCHES HARD FILTERS (SELF-REPORTED)**" if rec.is_hard_match else "🔴 **FAILS HARD CONSTRAINT**"
+                        uncertain_reasons = [
+                            reason for reason in rec.hard_filter_failures
+                            if "cannot confirm" in reason.lower() or "missing" in reason.lower()
+                        ]
+                        confirmed_failures = [
+                            reason for reason in rec.hard_filter_failures
+                            if reason not in uncertain_reasons
+                        ]
+                        if rec.is_hard_match:
+                            hard_pill = "🟢 **MEETS ACTIVE FILTERS (DIRECTORY DATA)**"
+                        elif uncertain_reasons and not confirmed_failures:
+                            hard_pill = "🟠 **ELIGIBILITY NEEDS REVIEW**"
+                        elif uncertain_reasons:
+                            hard_pill = "🟠 **REVIEW REQUIRED — POSSIBLE FAILURE**"
+                        else:
+                            hard_pill = "🔴 **CONFIRMED CONSTRAINT FAILURE**"
                         st.markdown(f"#### {rank_badge} {rec.company_name} &nbsp; {hard_pill}")
                         st.markdown(
                             f"🌐 [{rec.domain}](https://{rec.domain}) &nbsp;|&nbsp; "
@@ -243,8 +267,10 @@ def render_discovery_view(
                         st.metric("Composite Score", f"{rec.total_score:.1f}/100")
 
                     # Hard filter failure alert
-                    if not rec.is_hard_match and rec.hard_filter_failures:
-                        st.error(f"⚠️ **Hard Requirement Disqualification**: {'; '.join(rec.hard_filter_failures)}")
+                    if uncertain_reasons:
+                        st.warning(f"⚠️ **Eligibility not confirmed — buyer review required**: {'; '.join(uncertain_reasons)}")
+                    if confirmed_failures:
+                        st.error(f"⛔ **Confirmed constraint failure**: {'; '.join(confirmed_failures)}")
 
                     # Domain mismatch alert
                     if rec.domain_mismatch_warning:
@@ -255,7 +281,14 @@ def render_discovery_view(
                         )
 
                     # Match explanation
-                    st.info(f"**Match Analysis**: {rec.match_explanation}")
+                    display_explanation = rec.match_explanation
+                    if uncertain_reasons and not confirmed_failures and "Fails " in display_explanation:
+                        display_explanation = re.sub(
+                            r"Fails \d+ hard requirement\(s\)\.",
+                            f"Eligibility unconfirmed ({len(uncertain_reasons)} requirement(s) need buyer review).",
+                            display_explanation,
+                        )
+                    st.info(f"**Match Analysis**: {display_explanation}")
 
                     # Detailed evidence & risks in 3 columns
                     col_ev1, col_ev2, col_ev3 = st.columns(3)
@@ -325,7 +358,13 @@ def render_discovery_view(
                 "Company Name": rec.company_name,
                 "Domain": rec.domain,
                 "Total Score": rec.total_score,
-                "Qualified Match": "✅ Qualified" if rec.is_hard_match else "🔴 Disqualified",
+                "Eligibility Status": (
+                    "✅ Meets active filters" if rec.is_hard_match else
+                    "🟠 Needs review" if any(
+                        "cannot confirm" in reason.lower() or "missing" in reason.lower()
+                        for reason in rec.hard_filter_failures
+                    ) else "🔴 Confirmed constraint failure"
+                ),
                 "Headcount Range": rec.employee_range or "Not specified",
                 "Country": rec.headquarters_country,
                 "City": rec.headquarters_city or "Unverified",
@@ -361,7 +400,14 @@ def render_discovery_view(
                     st.markdown(f"🌐 `{r.domain}` &bull; 🏢 `{r.headquarters_country}`")
                     st.metric("Composite Score", f"{r.total_score:.1f}/100")
                     st.metric("Evidence Completeness", f"{r.evidence_completeness_pct:.0f}%")
-                    st.metric("Hard Match Status", "QUALIFIED" if r.is_hard_match else "DISQUALIFIED")
+                    eligibility_status = (
+                        "MEETS ACTIVE FILTERS" if r.is_hard_match else
+                        "NEEDS REVIEW" if any(
+                            "cannot confirm" in reason.lower() or "missing" in reason.lower()
+                            for reason in r.hard_filter_failures
+                        ) else "CONFIRMED FAILURE"
+                    )
+                    st.metric("Eligibility Status", eligibility_status)
 
                     st.markdown("#### Factor Breakdown:")
                     for dim, sc in r.factor_scores.items():
